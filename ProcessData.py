@@ -14,6 +14,7 @@ Created on Thu Oct  5 11:37:50 2017
 
 import json
 import pandas as pd
+from collections import defaultdict
 
 types_wiki = json.load(open('types.json'))#type information loaded from wikidata
 
@@ -65,3 +66,16 @@ with open('types_fb.json','w') as fp:
 #save the set of relations in the form (h,r,t) tuples    
 with open('relations_hrt.json','w') as fp:
     fp.write(json.dumps(relations,fp))
+    
+#make a dictionary of relations
+relations_dic_h = defaultdict(list)
+relations_dic_t = defaultdict(list)
+for h,r,t in relations:    
+        relations_dic_h[h].append((r,t))
+        relations_dic_t[t].append((h,r))        
+    
+#save the set of relations in the form of dictionaries
+with open('relations_dic_h.json','w') as fp:
+    fp.write(json.dumps(relations_dic_h,fp))    
+with open('relations_dic_t.json','w') as fp:
+    fp.write(json.dumps(relations_dic_t,fp))        
