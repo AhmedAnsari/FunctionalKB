@@ -54,38 +54,40 @@ NUM_INPUT = EMBEDDING_SIZE = 64 #@myself: need to set this
 VOCABULARY_SIZE = 14951
 RELATIONS_SIZE = 1345
 LOG_DIR = 'Logs/'+str(datetime.datetime.now())
+DEVICE = '/gpu:0'
 # =============================================================================
 # tf Graph input 
 # =============================================================================
 #Define the entity embedding matrix to be uniform in a unit cube
-ent_embeddings = tf.get_variable(name='W_Ent',shape = [VOCABULARY_SIZE,\
-                   EMBEDDING_SIZE],initializer = \
-                    tf.contrib.layers.xavier_initializer())
+with tf.device(DEVICE):
+    ent_embeddings = tf.get_variable(name='W_Ent',shape = [VOCABULARY_SIZE,\
+                       EMBEDDING_SIZE],initializer = \
+                        tf.contrib.layers.xavier_initializer())
+    
+    
+                                               
+    #Define the relation embedding matrix to be uniform in a unit cube
+    rel_embeddings = tf.get_variable(name='W_Rel',shape = [RELATIONS_SIZE,\
+                       EMBEDDING_SIZE],initializer = \
+                        tf.contrib.layers.xavier_initializer())
 
 
-                                           
-#Define the relation embedding matrix to be uniform in a unit cube
-rel_embeddings = tf.get_variable(name='W_Rel',shape = [RELATIONS_SIZE,\
-                   EMBEDDING_SIZE],initializer = \
-                    tf.contrib.layers.xavier_initializer())
 
-
-
-#this will contain embedding ids in given a batch
-X = tf.placeholder(tf.int32, shape=[BATCH_SIZE])
-
-#this will contain the type labels for each embedding in the given batch
-Y = tf.placeholder(tf.float32, shape=[BATCH_SIZE,NUM_TYPES])
-
-#these are the placeholders necessary for the TransE loss Part
-#placeholders for positive samples
-pos_h = tf.placeholder(tf.int32, [None])
-pos_r = tf.placeholder(tf.int32, [None])
-pos_t = tf.placeholder(tf.int32, [None])
-#placeholders for negative samples
-neg_h = tf.placeholder(tf.int32, [None])
-neg_r = tf.placeholder(tf.int32, [None])
-neg_t = tf.placeholder(tf.int32, [None])
+    #this will contain embedding ids in given a batch
+    X = tf.placeholder(tf.int32, shape=[BATCH_SIZE])
+    
+    #this will contain the type labels for each embedding in the given batch
+    Y = tf.placeholder(tf.float32, shape=[BATCH_SIZE,NUM_TYPES])
+    
+    #these are the placeholders necessary for the TransE loss Part
+    #placeholders for positive samples
+    pos_h = tf.placeholder(tf.int32, [None])
+    pos_r = tf.placeholder(tf.int32, [None])
+    pos_t = tf.placeholder(tf.int32, [None])
+    #placeholders for negative samples
+    neg_h = tf.placeholder(tf.int32, [None])
+    neg_r = tf.placeholder(tf.int32, [None])
+    neg_t = tf.placeholder(tf.int32, [None])
 
 #look up the vector for each of the source words in the batch for Jtype part
 embed = tf.nn.embedding_lookup(ent_embeddings, X)
@@ -101,45 +103,45 @@ neg_r_e = tf.nn.embedding_lookup(rel_embeddings, neg_r)
 
 
 
-
-
-weights = {
-        
-    'encoder_h1': tf.get_variable(name='W_encoder_h1',shape = [NUM_INPUT, \
-                   NUM_HIDDEN_1],initializer = \
-                    tf.contrib.layers.xavier_initializer()),
-
-    'encoder_h2': tf.get_variable(name='W_encoder_h2',shape = [NUM_HIDDEN_1, \
-                   NUM_HIDDEN_2],initializer = \
-                    tf.contrib.layers.xavier_initializer()),      
-                                                               
-    'decoder_h1': tf.get_variable(name='W_decoder_h1',shape = [NUM_HIDDEN_2, \
-                   NUM_HIDDEN_1],initializer = \
-                    tf.contrib.layers.xavier_initializer()),      
-    'decoder_h2': tf.get_variable(name='W_decoder_h2',shape = [NUM_HIDDEN_1, \
-                   NUM_INPUT],initializer = \
-                    tf.contrib.layers.xavier_initializer()),      
-    'classification_h': tf.get_variable(name='W_classification_h',shape = \
-                        [NUM_HIDDEN_2, NUM_TYPES],initializer = \
+with tf.device(DEVICE):
+    
+    weights = {
+            
+        'encoder_h1': tf.get_variable(name='W_encoder_h1',shape = [NUM_INPUT, \
+                       NUM_HIDDEN_1],initializer = \
                         tf.contrib.layers.xavier_initializer()),
-}
-biases = {
-    'encoder_b1': tf.get_variable(name='W_encoder_b1',shape = [NUM_HIDDEN_1\
-                   ],initializer = \
-                    tf.contrib.layers.xavier_initializer()),
-    'encoder_b2': tf.get_variable(name='W_encoder_b2',shape = [NUM_HIDDEN_2 \
-                   ],initializer = \
-                    tf.contrib.layers.xavier_initializer()),
-    'decoder_b1': tf.get_variable(name='W_decoder_b1',shape = [NUM_HIDDEN_1 \
-                   ],initializer = \
-                    tf.contrib.layers.xavier_initializer()),      
-    'decoder_b2': tf.get_variable(name='W_decoder_b2',shape = [NUM_INPUT \
-                   ],initializer = \
-                    tf.contrib.layers.xavier_initializer()),      
-    'classification_b': tf.get_variable(name='W_classification_b',shape = \
-                        [NUM_TYPES],initializer = \
+    
+        'encoder_h2': tf.get_variable(name='W_encoder_h2',shape = [NUM_HIDDEN_1, \
+                       NUM_HIDDEN_2],initializer = \
+                        tf.contrib.layers.xavier_initializer()),      
+                                                                   
+        'decoder_h1': tf.get_variable(name='W_decoder_h1',shape = [NUM_HIDDEN_2, \
+                       NUM_HIDDEN_1],initializer = \
+                        tf.contrib.layers.xavier_initializer()),      
+        'decoder_h2': tf.get_variable(name='W_decoder_h2',shape = [NUM_HIDDEN_1, \
+                       NUM_INPUT],initializer = \
+                        tf.contrib.layers.xavier_initializer()),      
+        'classification_h': tf.get_variable(name='W_classification_h',shape = \
+                            [NUM_HIDDEN_2, NUM_TYPES],initializer = \
+                            tf.contrib.layers.xavier_initializer()),
+    }
+    biases = {
+        'encoder_b1': tf.get_variable(name='W_encoder_b1',shape = [NUM_HIDDEN_1\
+                       ],initializer = \
                         tf.contrib.layers.xavier_initializer()),
-}
+        'encoder_b2': tf.get_variable(name='W_encoder_b2',shape = [NUM_HIDDEN_2 \
+                       ],initializer = \
+                        tf.contrib.layers.xavier_initializer()),
+        'decoder_b1': tf.get_variable(name='W_decoder_b1',shape = [NUM_HIDDEN_1 \
+                       ],initializer = \
+                        tf.contrib.layers.xavier_initializer()),      
+        'decoder_b2': tf.get_variable(name='W_decoder_b2',shape = [NUM_INPUT \
+                       ],initializer = \
+                        tf.contrib.layers.xavier_initializer()),      
+        'classification_b': tf.get_variable(name='W_classification_b',shape = \
+                            [NUM_TYPES],initializer = \
+                            tf.contrib.layers.xavier_initializer()),
+    }
 
 # =============================================================================
 #  Building the encoder
@@ -239,7 +241,9 @@ init = tf.global_variables_initializer()
 #  Start Training
 # =============================================================================
 # Start a new TF session
-with tf.Session() as sess:
+conf = tf.ConfigProto()
+conf.gpu_options.allow_growth=True
+with tf.Session(config = conf) as sess:
 
     # Run the initializer
     sess.run(init)
