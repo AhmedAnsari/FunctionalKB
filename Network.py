@@ -37,11 +37,11 @@ def generate_labels(data,batch):
 #  Training Parameters
 # =============================================================================
 LEARNING_RATE = 0.01
-NUM_STEPS = 30000 #@myself: need to set this
-BATCH_SIZE = 64 #@myself: need to set this
+NUM_STEPS = 300000 #@myself: need to set this
+BATCH_SIZE = 128 #@myself: need to set this
 DISPLAY_STEP = 1000 #@myself: need to set this
 NUM_TYPES_PER_BATCH = 32
-RHO = 0.05 #Desired average activation value
+RHO = 0.005 #Desired average activation value
 BETA = 0.5
 MARGIN = 1
 # =============================================================================
@@ -242,6 +242,8 @@ init = tf.global_variables_initializer()
 # Start a new TF session
 conf = tf.ConfigProto()
 conf.gpu_options.allow_growth=True
+conf.log_device_placement=True
+conf.allow_soft_placement=True
 with tf.Session(config = conf) as sess:
 
     # Run the initializer
