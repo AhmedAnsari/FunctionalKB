@@ -40,7 +40,6 @@ LEARNING_RATE = 0.01
 NUM_STEPS = 30000 #@myself: need to set this
 BATCH_SIZE = 64 #@myself: need to set this
 DISPLAY_STEP = 1000 #@myself: need to set this
-EXAMPLES_TO_SHOW = 10 #@myself: need to set this
 NUM_TYPES_PER_BATCH = 32
 RHO = 0.05 #Desired average activation value
 BETA = 0.5
@@ -54,7 +53,7 @@ NUM_INPUT = EMBEDDING_SIZE = 64 #@myself: need to set this
 VOCABULARY_SIZE = 14951
 RELATIONS_SIZE = 1345
 LOG_DIR = 'Logs/'+str(datetime.datetime.now())
-DEVICE = '/gpu:0'
+DEVICE = '/cpu:0'
 # =============================================================================
 # tf Graph input 
 # =============================================================================
@@ -249,7 +248,7 @@ with tf.Session(config = conf) as sess:
     sess.run(init)
 
     # Training
-    for i in range(1, NUM_STEPS+1): 
+    for step in range(1, NUM_STEPS+1): 
         #prepare the data
         #first select the Types that will be in this batch
         indices = random.sample(range(len(types)),NUM_TYPES_PER_BATCH)
@@ -276,8 +275,8 @@ with tf.Session(config = conf) as sess:
                         })
         
         # Display logs per step
-        if i % DISPLAY_STEP == 0 or i == 1:
-            print('Step %f: Minibatch Loss: %f' % (i, l))
-            saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"), i)
+        if step % DISPLAY_STEP == 0 or step == 1:
+            print('Step %i: Minibatch Loss: %f' % (step, l))
+            saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"), step)
             with open(LOG_DIR+'/loss.txt','a+') as fp:
-                fp.write('Step %f: Minibatch Loss: %f\n' % (i, l))
+                fp.write('Step %f: Minibatch Loss: %f\n' % (step, l))
