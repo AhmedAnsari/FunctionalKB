@@ -15,6 +15,7 @@ import json
 from Sampler import SampleTransEData
 import itertools
 import random
+import datetime
 
 # =============================================================================
 #  Import data regarding embedding relations and type information
@@ -52,16 +53,23 @@ NUM_HIDDEN_2 = 256 # 2nd layer num features (the latent dim)
 NUM_INPUT = EMBEDDING_SIZE = 64 #@myself: need to set this
 VOCABULARY_SIZE = 14951
 RELATIONS_SIZE = 1345
-LOG_DIR = 'Logs/' 
+LOG_DIR = 'Logs/'+str(datetime.datetime.now())
 # =============================================================================
 # tf Graph input 
 # =============================================================================
 #Define the entity embedding matrix to be uniform in a unit cube
-ent_embeddings = tf.Variable(tf.random_uniform([VOCABULARY_SIZE, EMBEDDING_SIZE],
-                                           -1.0, 1.0),name = 'Ent_Embedding')
+ent_embeddings = tf.get_variable(name='W_Ent',shape = [VOCABULARY_SIZE,\
+                   EMBEDDING_SIZE],initializer = \
+                    tf.contrib.layers.xavier_initializer())
+
+
+                                           
 #Define the relation embedding matrix to be uniform in a unit cube
-rel_embeddings = tf.Variable(tf.random_uniform([RELATIONS_SIZE, EMBEDDING_SIZE],
-                                           -1.0, 1.0),name = 'Rel_Embedding')#@myself: have to switch to tf.get_variable for xavier stuff
+rel_embeddings = tf.get_variable(name='W_Rel',shape = [RELATIONS_SIZE,\
+                   EMBEDDING_SIZE],initializer = \
+                    tf.contrib.layers.xavier_initializer())
+
+
 
 #this will contain embedding ids in given a batch
 X = tf.placeholder(tf.int32, shape=[BATCH_SIZE])
@@ -96,19 +104,41 @@ neg_r_e = tf.nn.embedding_lookup(rel_embeddings, neg_r)
 
 
 weights = {
-    'encoder_h1': tf.Variable(tf.random_normal([NUM_INPUT, NUM_HIDDEN_1])),
-    'encoder_h2': tf.Variable(tf.random_normal([NUM_HIDDEN_1, NUM_HIDDEN_2])),
-    'decoder_h1': tf.Variable(tf.random_normal([NUM_HIDDEN_2, NUM_HIDDEN_1])),
-    'decoder_h2': tf.Variable(tf.random_normal([NUM_HIDDEN_1, NUM_INPUT])),
-    'classification_h': tf.Variable(tf.random_normal([NUM_HIDDEN_2,
-                                                      NUM_TYPES]))
+        
+    'encoder_h1': tf.get_variable(name='W_encoder_h1',shape = [NUM_INPUT, \
+                   NUM_HIDDEN_1],initializer = \
+                    tf.contrib.layers.xavier_initializer()),
+
+    'encoder_h2': tf.get_variable(name='W_encoder_h2',shape = [NUM_HIDDEN_1, \
+                   NUM_HIDDEN_2],initializer = \
+                    tf.contrib.layers.xavier_initializer()),      
+                                                               
+    'decoder_h1': tf.get_variable(name='W_decoder_h1',shape = [NUM_HIDDEN_2, \
+                   NUM_HIDDEN_1],initializer = \
+                    tf.contrib.layers.xavier_initializer()),      
+    'decoder_h2': tf.get_variable(name='W_decoder_h2',shape = [NUM_HIDDEN_1, \
+                   NUM_INPUT],initializer = \
+                    tf.contrib.layers.xavier_initializer()),      
+    'classification_h': tf.get_variable(name='W_classification_h',shape = \
+                        [NUM_HIDDEN_2, NUM_TYPES],initializer = \
+                        tf.contrib.layers.xavier_initializer()),
 }
 biases = {
-    'encoder_b1': tf.Variable(tf.random_normal([NUM_HIDDEN_1])),
-    'encoder_b2': tf.Variable(tf.random_normal([NUM_HIDDEN_2])),
-    'decoder_b1': tf.Variable(tf.random_normal([NUM_HIDDEN_1])),
-    'decoder_b2': tf.Variable(tf.random_normal([NUM_INPUT])),
-    'classification_h': tf.Variable(tf.random_normal([NUM_TYPES]))
+    'encoder_b1': tf.get_variable(name='W_encoder_b1',shape = [NUM_HIDDEN_1\
+                   ],initializer = \
+                    tf.contrib.layers.xavier_initializer()),
+    'encoder_b2': tf.get_variable(name='W_encoder_b2',shape = [NUM_HIDDEN_2 \
+                   ],initializer = \
+                    tf.contrib.layers.xavier_initializer()),
+    'decoder_b1': tf.get_variable(name='W_decoder_b1',shape = [NUM_HIDDEN_1 \
+                   ],initializer = \
+                    tf.contrib.layers.xavier_initializer()),      
+    'decoder_b2': tf.get_variable(name='W_decoder_b2',shape = [NUM_INPUT \
+                   ],initializer = \
+                    tf.contrib.layers.xavier_initializer()),      
+    'classification_b': tf.get_variable(name='W_classification_b',shape = \
+                        [NUM_TYPES],initializer = \
+                        tf.contrib.layers.xavier_initializer()),
 }
 
 # =============================================================================
@@ -122,8 +152,8 @@ def encoder(x):
     layer_2 = tf.nn.tanh(tf.add(tf.matmul(layer_1, weights['encoder_h2']),
                                    biases['encoder_b2']))
     
-    RhoJEH1 = tf.reduce_mean(layer_1,0)
-    RhoJEH2 = tf.reduce_mean(layer_2,0) 
+    RhoJEH1 = tf.reduce_mean(tf.abs(layer_1),0)
+    RhoJEH2 = tf.reduce_mean(tf.abs(layer_2),0) 
     return layer_2, RhoJEH1, RhoJEH2
 
 
@@ -132,13 +162,13 @@ def encoder(x):
 # =============================================================================
 def decoder(x):
     # Decoder Hidden layer with sigmoid activation #1
-    layer_1 = tf.nn.sigmoid(tf.add(tf.matmul(x, weights['decoder_h1']),
+    layer_1 = tf.nn.tanh(tf.add(tf.matmul(x, weights['decoder_h1']),
                                    biases['decoder_b1']))
     # Decoder Hidden layer with sigmoid activation #2
-    layer_2 = tf.nn.sigmoid(tf.add(tf.matmul(layer_1, weights['decoder_h2']),
+    layer_2 = tf.nn.tanh(tf.add(tf.matmul(layer_1, weights['decoder_h2']),
                                    biases['decoder_b2']))
-    RhoJDH1 = tf.reduce_mean(layer_1,0)
-    RhoJDH2 = tf.reduce_mean(layer_2,0)     
+    RhoJDH1 = tf.reduce_mean(tf.abs(layer_1),0)
+    RhoJDH2 = tf.reduce_mean(tf.abs(layer_2),0)     
     return layer_2, RhoJDH1, RhoJDH2
 
 # =============================================================================
@@ -147,7 +177,7 @@ def decoder(x):
 def classify(x):
     #classification hidden layer with sigmoid activation
     layer_1 = tf.nn.sigmoid(tf.add(tf.matmul(x, weights['classification_h']),
-                                   biases['classification_h']))
+                                   biases['classification_b']))
     return layer_1
 
 # =============================================================================
@@ -180,7 +210,7 @@ loss_classifier =  tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
         labels=labels,logits=logits))
  #sparsity loss
 RhoJ = tf.clip_by_value(tf.concat([RhoJEH1, RhoJEH2, RhoJDH1, RhoJDH2],
-                                  axis = 0),1e-10,1e10)
+                                  axis = 0),1e-10,1-1e-10)
 Rho = tf.constant(RHO) #Desired average activation value
 
 loss_sparsity = tf.reduce_mean(tf.add(tf.multiply(Rho,tf.log(tf.div(Rho,RhoJ)))
@@ -245,3 +275,5 @@ with tf.Session() as sess:
         if i % DISPLAY_STEP == 0 or i == 1:
             print('Step %f: Minibatch Loss: %f' % (i, l))
             saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"), i)
+            with open(LOG_DIR+'/loss.txt','a+') as fp:
+                fp.write('Step %f: Minibatch Loss: %f\n' % (i, l))
