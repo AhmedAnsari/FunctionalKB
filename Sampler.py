@@ -22,35 +22,56 @@ def SampleTransEData(hDic,tDic,batch,VOCABULARY_SIZE = 14951):
     
     for e in batch:
         
-        if e in hDic or e in tDic:
-            if random.random()>0.5 and e in hDic:
+        if e in hDic and e in tDic:
+            if random.random()>0.5:
                 h = e
-                r,t = random.sample(hDic[h])
+                r,t = random.sample(hDic[h],1)[0]
                 
                 h_ = h
                 r_ = r
                 while True:
-                    t_ = random.sample(range(VOCABULARY_SIZE))
-                    if (r_,t_) not in hDic[h_].values():
+                    t_ = random.sample(range(VOCABULARY_SIZE),1)[0]
+                    if (r_,t_) not in hDic[h_]:
                         break  
                     
-            elif random.random()<=0.5 and e in tDic:
+            else:
                 t = e
-                h,r = random.sample(tDic[t])
+                h,r = random.sample(tDic[t],1)[0]
                 t_ = t
                 r_ = r
                 while True:
-                    h_ = random.sample(range(VOCABULARY_SIZE))
-                    if (h_,r_) not in tDic[t_].values():
-                        break                  
-                
-            pos_h.append(h)
-            pos_r.append(r)
-            pos_t.append(t)
-            neg_h.append(h)
-            neg_r.append(r)
-            neg_t.append(t)            
+                    h_ = random.sample(range(VOCABULARY_SIZE),1)[0]
+                    if (h_,r_) not in tDic[t_]:
+                        break    
 
+            
+        elif e in hDic and e not in tDic:
+            h = e
+            r,t = random.sample(hDic[h],1)[0]
+            
+            h_ = h
+            r_ = r
+            while True:
+                t_ = random.sample(range(VOCABULARY_SIZE),1)[0]
+                if (r_,t_) not in hDic[h_]:
+                    break
+            
+        elif e in tDic and e not in hDic:               
+            t = e
+            h,r = random.sample(tDic[t],1)[0]
+            t_ = t
+            r_ = r
+            while True:
+                h_ = random.sample(range(VOCABULARY_SIZE),1)[0]
+                if (h_,r_) not in tDic[t_]:
+                    break 
+
+        pos_h.append(h)
+        pos_r.append(r)
+        pos_t.append(t)
+        neg_h.append(h_)
+        neg_r.append(r_)
+        neg_t.append(t_)                                          
     return pos_h,pos_r,pos_t,neg_h,neg_r,neg_t
             
     

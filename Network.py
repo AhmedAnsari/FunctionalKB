@@ -16,13 +16,14 @@ from Sampler import SampleTransEData
 import itertools
 import random
 import datetime
+import cPickle as pkl
 
 # =============================================================================
 #  Import data regarding embedding relations and type information
 # =============================================================================
 types = json.load(open('types_fb.json'))
-relations_dic_h = json.load(open('relations_dic_h.json'))
-relations_dic_t = json.load(open('relations_dic_t.json'))
+relations_dic_h = pkl.load(open('relations_dic_h.pkl'))
+relations_dic_t = pkl.load(open('relations_dic_t.pkl'))
 NUM_TYPES = len(types)
 
 def generate_labels(data,batch):
@@ -40,7 +41,7 @@ LEARNING_RATE = 0.01
 NUM_STEPS = 300000 #@myself: need to set this
 BATCH_SIZE = 128 #@myself: need to set this
 DISPLAY_STEP = 1000 #@myself: need to set this
-NUM_TYPES_PER_BATCH = 32
+NUM_TYPES_PER_BATCH = 64
 RHO = 0.005 #Desired average activation value
 BETA = 0.5
 MARGIN = 1
@@ -106,36 +107,36 @@ with tf.device(DEVICE):
     
     weights = {
             
-        'encoder_h1': tf.get_variable(name='W_encoder_h1',shape = [NUM_INPUT, \
-                       NUM_HIDDEN_1],initializer = \
+        'encoder_h1': tf.get_variable(name='W_encoder_h1',shape = \
+                      [NUM_INPUT, NUM_HIDDEN_1],initializer = \
                         tf.contrib.layers.xavier_initializer()),
     
-        'encoder_h2': tf.get_variable(name='W_encoder_h2',shape = [NUM_HIDDEN_1, \
-                       NUM_HIDDEN_2],initializer = \
+        'encoder_h2': tf.get_variable(name='W_encoder_h2',shape = \
+                      [NUM_HIDDEN_1, NUM_HIDDEN_2],initializer = \
                         tf.contrib.layers.xavier_initializer()),      
                                                                    
-        'decoder_h1': tf.get_variable(name='W_decoder_h1',shape = [NUM_HIDDEN_2, \
-                       NUM_HIDDEN_1],initializer = \
+        'decoder_h1': tf.get_variable(name='W_decoder_h1',shape = \
+                      [NUM_HIDDEN_2, NUM_HIDDEN_1],initializer = \
                         tf.contrib.layers.xavier_initializer()),      
-        'decoder_h2': tf.get_variable(name='W_decoder_h2',shape = [NUM_HIDDEN_1, \
-                       NUM_INPUT],initializer = \
+        'decoder_h2': tf.get_variable(name='W_decoder_h2',shape = \
+                      [NUM_HIDDEN_1, NUM_INPUT],initializer = \
                         tf.contrib.layers.xavier_initializer()),      
         'classification_h': tf.get_variable(name='W_classification_h',shape = \
                             [NUM_HIDDEN_2, NUM_TYPES],initializer = \
                             tf.contrib.layers.xavier_initializer()),
     }
     biases = {
-        'encoder_b1': tf.get_variable(name='W_encoder_b1',shape = [NUM_HIDDEN_1\
-                       ],initializer = \
+        'encoder_b1': tf.get_variable(name='W_encoder_b1',shape = \
+                      [NUM_HIDDEN_1],initializer = \
                         tf.contrib.layers.xavier_initializer()),
-        'encoder_b2': tf.get_variable(name='W_encoder_b2',shape = [NUM_HIDDEN_2 \
-                       ],initializer = \
+        'encoder_b2': tf.get_variable(name='W_encoder_b2',shape = \
+                      [NUM_HIDDEN_2],initializer = \
                         tf.contrib.layers.xavier_initializer()),
-        'decoder_b1': tf.get_variable(name='W_decoder_b1',shape = [NUM_HIDDEN_1 \
-                       ],initializer = \
+        'decoder_b1': tf.get_variable(name='W_decoder_b1',shape = \
+                       [NUM_HIDDEN_1],initializer = \
                         tf.contrib.layers.xavier_initializer()),      
-        'decoder_b2': tf.get_variable(name='W_decoder_b2',shape = [NUM_INPUT \
-                       ],initializer = \
+        'decoder_b2': tf.get_variable(name='W_decoder_b2',shape = \
+                      [NUM_INPUT],initializer = \
                         tf.contrib.layers.xavier_initializer()),      
         'classification_b': tf.get_variable(name='W_classification_b',shape = \
                             [NUM_TYPES],initializer = \
@@ -219,7 +220,7 @@ loss_sparsity = tf.reduce_mean(tf.add(tf.multiply(Rho,tf.log(tf.div(Rho,RhoJ)))
  
  #regularization cost
 loss_regulariation = BETA*tf.reduce_mean(tf.stack(map(lambda x: 
-    tf.nn.l2_loss(x), weights.values()),axis=0))
+                        tf.nn.l2_loss(x), weights.values()),axis=0))
     
  #TransE loss
 pos = tf.reduce_sum((pos_h_e + pos_r_e - pos_t_e) ** 2, 1, keep_dims = True)
@@ -227,7 +228,10 @@ neg = tf.reduce_sum((neg_h_e + neg_r_e - neg_t_e) ** 2, 1, keep_dims = True)
 loss_transe = tf.reduce_sum(tf.maximum(pos - neg + MARGIN, 0))
     
 loss = loss_autoenc + loss_classifier + loss_sparsity + \
-                                loss_regulariation + loss_transe
+        loss_regulariation + loss_transe
+
+stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
+                        loss_regulariation, loss_transe],axis = 0)
                                 
 optimizer = tf.train.RMSPropOptimizer(LEARNING_RATE).minimize(loss)
 saver = tf.train.Saver()
@@ -242,7 +246,7 @@ init = tf.global_variables_initializer()
 # Start a new TF session
 conf = tf.ConfigProto()
 conf.gpu_options.allow_growth=True
-conf.log_device_placement=True
+conf.log_device_placement=False #@myself: use this for debugging
 conf.allow_soft_placement=True
 with tf.Session(config = conf) as sess:
 
@@ -267,7 +271,7 @@ with tf.Session(config = conf) as sess:
         SampleTransEData(relations_dic_h,relations_dic_t,\
                          batch_x,VOCABULARY_SIZE)
         # Run optimization op (backprop) and cost op (to get loss value)
-        _, l = sess.run([optimizer, loss], feed_dict={X: batch_x,Y:batch_y, \
+        _, l, l_array= sess.run([optimizer, loss, stacked_loss], feed_dict={X: batch_x,Y:batch_y, \
                         pos_h:posh_batch,
                         pos_r:posr_batch,
                         pos_t:post_batch,                        
@@ -279,6 +283,9 @@ with tf.Session(config = conf) as sess:
         # Display logs per step
         if step % DISPLAY_STEP == 0 or step == 1:
             print('Step %i: Minibatch Loss: %f' % (step, l))
+            l_array = [str(token) for token in l_array]
+            print('Step %i: Loss Array: %s' % (step,','.join(l_array)))
             saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"), step)
             with open(LOG_DIR+'/loss.txt','a+') as fp:
-                fp.write('Step %f: Minibatch Loss: %f\n' % (step, l))
+                fp.write('Step %i: Minibatch Loss: %f\n' % (step, l))
+                fp.write('Step %i: Loss Array: %s' % (step,','.join(l_array)))

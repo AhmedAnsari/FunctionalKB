@@ -15,6 +15,7 @@ Created on Thu Oct  5 11:37:50 2017
 import json
 import pandas as pd
 from collections import defaultdict
+import cPickle as pkl
 
 types_wiki = json.load(open('types.json'))#type information loaded from wikidata
 
@@ -75,7 +76,7 @@ for h,r,t in relations:
         relations_dic_t[t].append((h,r))        
     
 #save the set of relations in the form of dictionaries
-with open('relations_dic_h.json','w') as fp:
-    fp.write(json.dumps(relations_dic_h,fp))    
-with open('relations_dic_t.json','w') as fp:
-    fp.write(json.dumps(relations_dic_t,fp))        
+with open('relations_dic_h.pkl','w') as fp:
+    pkl.dump(relations_dic_h,fp)
+with open('relations_dic_t.pkl','w') as fp:
+    pkl.dump(relations_dic_t,fp)
