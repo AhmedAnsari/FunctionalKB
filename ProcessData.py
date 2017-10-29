@@ -82,7 +82,6 @@ with open('relations_dic_h.pkl','w') as fp:
 with open('relations_dic_t.pkl','w') as fp:
     pkl.dump(relations_dic_t,fp)
     
-#evalsubset_relations_train , gold_h_train, gold_h_test are used \
 #only during evaluation
 evalsubset_relations_train = random.sample(relations,int(0.1*len(relations)))
 with open('evalsubset_relations_train.pkl','w') as fp:

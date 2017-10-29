@@ -58,8 +58,6 @@ evalsubset_relations_train = np.array(pkl.load(open\
 evalsubset_relations_train = evalsubset_relations_train \
      [0:len(evalsubset_relations_train) - \
      len(evalsubset_relations_train) % BATCH_EVAL]
-gold_t_train = pkl.load(open('gold_t_train.pkl','r'))
-gold_h_train = pkl.load(open('gold_h_train.pkl','r'))
 NUM_TYPES = len(types)
 
 def generate_labels(data,batch):
