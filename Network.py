@@ -17,23 +17,10 @@ import itertools
 import random
 import datetime
 import cPickle as pkl
+from Evaluation import Evaluate_MR
+from pathos.threading import ThreadPool as Pool
 
-# =============================================================================
-#  Import data regarding embedding relations and type information
-# =============================================================================
-types = json.load(open('types_fb.json'))
-relations_dic_h = pkl.load(open('relations_dic_h.pkl'))
-relations_dic_t = pkl.load(open('relations_dic_t.pkl'))
-NUM_TYPES = len(types)
 
-def generate_labels(data,batch):
-    out = []
-    for x in batch:
-        out.append(len(data)*[0])
-        for i in range(len(data)):
-            if x in data[i]:
-                out[-1][i]=1                    
-    return out
 # =============================================================================
 #  Training Parameters
 # =============================================================================
@@ -41,10 +28,12 @@ LEARNING_RATE = 0.01
 NUM_STEPS = 300000 #@myself: need to set this
 BATCH_SIZE = 128 #@myself: need to set this
 DISPLAY_STEP = 1000 #@myself: need to set this
+EVAL_STEP = 10 * DISPLAY_STEP
 NUM_TYPES_PER_BATCH = 64
 RHO = 0.005 #Desired average activation value
 BETA = 0.5
 MARGIN = 1
+BATCH_EVAL = 128
 # =============================================================================
 #  Network Parameters-1 #First let us solve only for Type loss
 # =============================================================================
@@ -55,6 +44,32 @@ VOCABULARY_SIZE = 14951
 RELATIONS_SIZE = 1345
 LOG_DIR = 'Logs/'+str(datetime.datetime.now())
 DEVICE = '/cpu:0'
+# =============================================================================
+#  Import data regarding embedding relations and type information
+# =============================================================================
+types = json.load(open('types_fb.json'))
+relations_dic_h = pkl.load(open('relations_dic_h.pkl'))
+relations_dic_t = pkl.load(open('relations_dic_t.pkl'))
+
+#for evaluation during training
+#relations = np.array(json.load(open('relations_hrt.json')))
+evalsubset_relations_train = np.array(pkl.load(open\
+               ('evalsubset_relations_train.pkl','r')))
+evalsubset_relations_train = evalsubset_relations_train \
+     [0:len(evalsubset_relations_train) - \
+     len(evalsubset_relations_train) % BATCH_EVAL]
+gold_t_train = pkl.load(open('gold_t_train.pkl','r'))
+gold_h_train = pkl.load(open('gold_h_train.pkl','r'))
+NUM_TYPES = len(types)
+
+def generate_labels(data,batch):
+    out = []
+    for x in batch:
+        out.append(len(data)*[0])
+        for i in range(len(data)):
+            if x in data[i]:
+                out[-1][i]=1                    
+    return out
 # =============================================================================
 # tf Graph input 
 # =============================================================================
@@ -88,6 +103,14 @@ with tf.device(DEVICE):
     neg_h = tf.placeholder(tf.int32, [None])
     neg_r = tf.placeholder(tf.int32, [None])
     neg_t = tf.placeholder(tf.int32, [None])
+    
+    #these are the placeholders necessary for evaluating the link prediction
+    eval_h = tf.placeholder(tf.int32, [None])
+    eval_t = tf.placeholder(tf.int32, [None])#will do h+r and generate rank t 
+    eval_r = tf.placeholder(tf.int32, [None])
+    eval_to_rank = tf.placeholder(tf.int32, [None])    
+    
+    
 
 #look up the vector for each of the source words in the batch for Jtype part
 embed = tf.nn.embedding_lookup(ent_embeddings, X)
@@ -99,6 +122,13 @@ pos_r_e = tf.nn.embedding_lookup(rel_embeddings, pos_r)
 neg_h_e = tf.nn.embedding_lookup(ent_embeddings, neg_h)
 neg_t_e = tf.nn.embedding_lookup(ent_embeddings, neg_t)
 neg_r_e = tf.nn.embedding_lookup(rel_embeddings, neg_r)
+
+
+eval_h_e = tf.nn.embedding_lookup(ent_embeddings, eval_h)
+eval_t_e = tf.nn.embedding_lookup(ent_embeddings, eval_t)
+eval_r_e = tf.nn.embedding_lookup(rel_embeddings, eval_r)
+eval_to_rank_e = tf.nn.embedding_lookup(ent_embeddings, eval_to_rank)
+
 
 
 
@@ -125,6 +155,7 @@ with tf.device(DEVICE):
                             [NUM_HIDDEN_2, NUM_TYPES],initializer = \
                             tf.contrib.layers.xavier_initializer()),
     }
+    
     biases = {
         'encoder_b1': tf.get_variable(name='W_encoder_b1',shape = \
                       [NUM_HIDDEN_1],initializer = \
@@ -183,12 +214,29 @@ def classify(x):
     return layer_1
 
 # =============================================================================
+# Building the testing layer which outputs a ranked list of entities
+# =============================================================================
+def predict_rank(x, y, z, batch_size_eval, z_eval_dataset_size, K):
+    z_ = tf.add(x,y)
+    z_ = tf.stack(z_eval_dataset_size*[z_],axis=1)
+    z = tf.stack(batch_size_eval*[z],axis=0) 
+    out = -1*tf.norm(tf.add(z,-1*z_),axis=2)
+    #now find the top_k members from this set
+    values_indices = tf.nn.top_k(out,k=K)
+    return values_indices
+# =============================================================================
 #  Construct model
 # =============================================================================
+#training part of network
 encoder_op, RhoJEH1, RhoJEH2 = encoder(embed)
 decoder_op, RhoJDH1, RhoJDH2 = decoder(encoder_op)
 classifier_op = classify(encoder_op)
 
+#evaluation part of network
+_t, indices_t = predict_rank(eval_h_e, eval_r_e, eval_to_rank_e, \
+                    BATCH_EVAL, VOCABULARY_SIZE, VOCABULARY_SIZE)
+_h, indices_h = predict_rank(eval_t_e, eval_r_e, eval_to_rank_e, \
+                    BATCH_EVAL, VOCABULARY_SIZE, VOCABULARY_SIZE)
 # =============================================================================
 #  Prediction
 # =============================================================================
@@ -264,28 +312,57 @@ with tf.Session(config = conf) as sess:
         # Get the next batch of input data
         batch_x = random.sample(data_flat,BATCH_SIZE)
         # Get the next batch of type labels
-        batch_y = generate_labels(types,batch_x)
-        
+        batch_y = generate_labels(types,batch_x)        
         #for TransE loss part, get positive and negative samples
         posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch = \
         SampleTransEData(relations_dic_h,relations_dic_t,\
                          batch_x,VOCABULARY_SIZE)
+        
         # Run optimization op (backprop) and cost op (to get loss value)
-        _, l, l_array= sess.run([optimizer, loss, stacked_loss], feed_dict={X: batch_x,Y:batch_y, \
-                        pos_h:posh_batch,
-                        pos_r:posr_batch,
-                        pos_t:post_batch,                        
-                        neg_h:negh_batch,
-                        neg_r:negr_batch,
-                        neg_t:negt_batch,                        
+        _, l, l_array= sess.run([optimizer, loss, stacked_loss], feed_dict=\
+                        {
+                            X: batch_x,Y:batch_y,
+                            pos_h:posh_batch,
+                            pos_r:posr_batch,
+                            pos_t:post_batch,                        
+                            neg_h:negh_batch,
+                            neg_r:negr_batch,
+                            neg_t:negt_batch,                        
                         })
         
         # Display logs per step
         if step % DISPLAY_STEP == 0 or step == 1:
-            print('Step %i: Minibatch Loss: %f' % (step, l))
+            print('Step %i: Minibatch Loss: %f\n' % (step, l))
             l_array = [str(token) for token in l_array]
-            print('Step %i: Loss Array: %s' % (step,','.join(l_array)))
+            print('Step %i: Loss Array: %s\n' % (step,','.join(l_array)))
             saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"), step)
             with open(LOG_DIR+'/loss.txt','a+') as fp:
                 fp.write('Step %i: Minibatch Loss: %f\n' % (step, l))
-                fp.write('Step %i: Loss Array: %s' % (step,','.join(l_array)))
+                fp.write('Step %i: Loss Array: %s\n'% (step,','.join(l_array)))
+                
+        if step % EVAL_STEP == 0 or step == 1:
+            # Evaluation on Training Data
+            MRT = []
+            MRH = []
+            skip_rate = int(evalsubset_relations_train.shape[0]/BATCH_EVAL)
+            P = Pool()
+            for j in range(0, skip_rate):
+                eval_batch_h = evalsubset_relations_train[j::skip_rate,0]
+                eval_batch_r = evalsubset_relations_train[j::skip_rate,1] 
+                eval_batch_t = evalsubset_relations_train[j::skip_rate,2] 
+                assert eval_batch_h.shape[0]==BATCH_EVAL
+                
+                indexes_h, indexes_t = sess.run([indices_h,indices_t], feed_dict = \
+                                 {
+                                    eval_h:eval_batch_h,                                
+                                    eval_r:eval_batch_r,                                
+                                    eval_t:eval_batch_t,
+                                    eval_to_rank:range(VOCABULARY_SIZE) 
+                                 })
+                mrt, mrh = P.map(Evaluate_MR,*[(eval_batch_t, eval_batch_h), (indexes_t, indexes_h), (P,P)])
+                MRT.extend(mrt)
+                MRH.extend(mrh)            
+                
+            P.close()
+            with open(LOG_DIR+'/progress.txt','a+') as fp:        
+                fp.write('Step %i: Minibatch MRT: %f\n' % (step, np.mean(MRT)))
