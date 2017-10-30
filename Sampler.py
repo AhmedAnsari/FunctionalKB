@@ -25,44 +25,61 @@ def SampleTransEData(hDic,tDic,batch,VOCABULARY_SIZE = 14951):
         if e in hDic and e in tDic:
             if random.random()>0.5:
                 h = e
-                r,t = random.sample(hDic[h],1)[0]
+                while True:
+                    r,t = random.sample(hDic[h],1)[0]
+                    if t in batch:
+                        #need to ensure sampling entities 
+                        #only from batch for better convergence                        
+                        break
                 
                 h_ = h
                 r_ = r
                 while True:
-                    t_ = random.sample(range(VOCABULARY_SIZE),1)[0]
+                    #need to ensure sampling entities 
+                    #only from batch for better convergence                                            
+                    t_ = random.sample(batch)[0]
                     if (r_,t_) not in hDic[h_]:
                         break  
                     
             else:
                 t = e
-                h,r = random.sample(tDic[t],1)[0]
+                while True:
+                    h,r = random.sample(tDic[t],1)[0]
+                    if h in batch:
+                        break
+                    
                 t_ = t
                 r_ = r
                 while True:
-                    h_ = random.sample(range(VOCABULARY_SIZE),1)[0]
+                    h_ = random.sample(batch)[0]
                     if (h_,r_) not in tDic[t_]:
                         break    
 
             
         elif e in hDic and e not in tDic:
             h = e
-            r,t = random.sample(hDic[h],1)[0]
+            while True:
+                r,t = random.sample(hDic[h],1)[0]
+                if t in batch:
+                    break
             
             h_ = h
             r_ = r
             while True:
-                t_ = random.sample(range(VOCABULARY_SIZE),1)[0]
+                t_ = random.sample(batch)[0]
                 if (r_,t_) not in hDic[h_]:
                     break
             
         elif e in tDic and e not in hDic:               
             t = e
-            h,r = random.sample(tDic[t],1)[0]
+            while True:
+                h,r = random.sample(tDic[t],1)[0]
+                if h in batch:
+                    break
             t_ = t
             r_ = r
             while True:
-                h_ = random.sample(range(VOCABULARY_SIZE),1)[0]
+                h_ = random.sample(batch)[0]
                 if (h_,r_) not in tDic[t_]:
                     break 
 
