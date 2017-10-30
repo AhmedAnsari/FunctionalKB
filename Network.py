@@ -233,7 +233,7 @@ classifier_op = classify(encoder_op)
 #evaluation part of network
 _t, indices_t = predict_rank(eval_h_e, eval_r_e, eval_to_rank_e, \
                     BATCH_EVAL, VOCABULARY_SIZE, VOCABULARY_SIZE)
-_h, indices_h = predict_rank(eval_t_e, eval_r_e, eval_to_rank_e, \
+_h, indices_h = predict_rank(eval_t_e, -1*eval_r_e, eval_to_rank_e, \
                     BATCH_EVAL, VOCABULARY_SIZE, VOCABULARY_SIZE)
 # =============================================================================
 #  Prediction
