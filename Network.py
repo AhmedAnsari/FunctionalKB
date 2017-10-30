@@ -28,8 +28,8 @@ LEARNING_RATE = 0.01
 NUM_STEPS = 300000 #@myself: need to set this
 BATCH_SIZE = 128 #@myself: need to set this
 DISPLAY_STEP = 1000 #@myself: need to set this
-EVAL_STEP = 1 * DISPLAY_STEP
-NUM_TYPES_PER_BATCH = 64
+EVAL_STEP = 5 * DISPLAY_STEP
+NUM_TYPES_PER_BATCH = 128
 RHO = 0.005 #Desired average activation value
 BETA = 0.5
 MARGIN = 1
@@ -314,8 +314,8 @@ with tf.Session(config = conf) as sess:
         batch_y = generate_labels(types,batch_x)        
         #for TransE loss part, get positive and negative samples
         posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch = \
-        SampleTransEData(relations_dic_h,relations_dic_t,\
-                         batch_x,VOCABULARY_SIZE)
+        SampleTransEData(relations_dic_h, relations_dic_t,\
+                         batch_x, data_flat, 100)
         
         # Run optimization op (backprop) and cost op (to get loss value)
         _, l, l_array= sess.run([optimizer, loss, stacked_loss], feed_dict=\

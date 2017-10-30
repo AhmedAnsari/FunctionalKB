@@ -11,7 +11,7 @@ import random
 # =============================================================================
 #  Sampler Function to generate samples for TransE Minibatch
 # =============================================================================
-def SampleTransEData(hDic,tDic,batch,VOCABULARY_SIZE = 14951):
+def SampleTransEData(hDic,tDic,batch, valid_entities, Max_Tries = 100):
 
     pos_h = []
     pos_r = []
@@ -25,9 +25,9 @@ def SampleTransEData(hDic,tDic,batch,VOCABULARY_SIZE = 14951):
         if e in hDic and e in tDic:
             if random.random()>0.5:
                 h = e
-                while True:
+                for try_sampling in range(Max_Tries):
                     r,t = random.sample(hDic[h],1)[0]
-                    if t in batch:
+                    if t in valid_entities:
                         #need to ensure sampling entities 
                         #only from batch for better convergence                        
                         break
@@ -37,52 +37,52 @@ def SampleTransEData(hDic,tDic,batch,VOCABULARY_SIZE = 14951):
                 while True:
                     #need to ensure sampling entities 
                     #only from batch for better convergence                                            
-                    t_ = random.sample(batch,1)[0]
+                    t_ = random.sample(valid_entities,1)[0]
                     if (r_,t_) not in hDic[h_]:
                         break  
                     
             else:
                 t = e
-                while True:
+                for try_sampling in range(Max_Tries):
                     h,r = random.sample(tDic[t],1)[0]
-                    if h in batch:
+                    if h in valid_entities:
                         break
                     
                 t_ = t
                 r_ = r
                 while True:
-                    h_ = random.sample(batch,1)[0]
+                    h_ = random.sample(valid_entities,1)[0]
                     if (h_,r_) not in tDic[t_]:
                         break    
 
             
         elif e in hDic and e not in tDic:
             h = e
-            while True:
+            for try_sampling in range(Max_Tries):
                 r,t = random.sample(hDic[h],1)[0]
-                if t in batch:
+                if t in valid_entities:
                     break
             
             h_ = h
             r_ = r
             while True:
-                t_ = random.sample(batch,1)[0]
+                t_ = random.sample(valid_entities,1)[0]
                 if (r_,t_) not in hDic[h_]:
                     break
             
         elif e in tDic and e not in hDic:               
             t = e
-            while True:
+            for try_sampling in range(Max_Tries):
                 h,r = random.sample(tDic[t],1)[0]
-                if h in batch:
+                if h in valid_entities:
                     break
             t_ = t
             r_ = r
             while True:
-                h_ = random.sample(batch,1)[0]
+                h_ = random.sample(valid_entities,1)[0]
                 if (h_,r_) not in tDic[t_]:
                     break 
-
+#        print try_sampling
         pos_h.append(h)
         pos_r.append(r)
         pos_t.append(t)
