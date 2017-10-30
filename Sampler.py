@@ -37,7 +37,7 @@ def SampleTransEData(hDic,tDic,batch,VOCABULARY_SIZE = 14951):
                 while True:
                     #need to ensure sampling entities 
                     #only from batch for better convergence                                            
-                    t_ = random.sample(batch)[0]
+                    t_ = random.sample(batch,1)[0]
                     if (r_,t_) not in hDic[h_]:
                         break  
                     
@@ -51,7 +51,7 @@ def SampleTransEData(hDic,tDic,batch,VOCABULARY_SIZE = 14951):
                 t_ = t
                 r_ = r
                 while True:
-                    h_ = random.sample(batch)[0]
+                    h_ = random.sample(batch,1)[0]
                     if (h_,r_) not in tDic[t_]:
                         break    
 
@@ -66,7 +66,7 @@ def SampleTransEData(hDic,tDic,batch,VOCABULARY_SIZE = 14951):
             h_ = h
             r_ = r
             while True:
-                t_ = random.sample(batch)[0]
+                t_ = random.sample(batch,1)[0]
                 if (r_,t_) not in hDic[h_]:
                     break
             
@@ -79,7 +79,7 @@ def SampleTransEData(hDic,tDic,batch,VOCABULARY_SIZE = 14951):
             t_ = t
             r_ = r
             while True:
-                h_ = random.sample(batch)[0]
+                h_ = random.sample(batch,1)[0]
                 if (h_,r_) not in tDic[t_]:
                     break 
 
