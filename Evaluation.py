@@ -6,7 +6,6 @@ Created on Wed Oct 25 12:17:30 2017
 @author: Ahmed Ansari
 @email: ansarighulamahmed@gmail.com
 """
-import numpy as np
 
 def Evaluate_MR(gold_list, indices, P):
     """This function evaluates the mean rank 
@@ -24,9 +23,9 @@ def Evaluate_MR(gold_list, indices, P):
     MR = []
     
     def get_rank(arg):
-        list2 = indices 
-        _index = np.where(list2==arg)[0][0]
+        list2 = indices[arg[1]]
+        _index = list2.index(arg[0])
         return _index+1
     
-    MR.extend(P.map(get_rank, gold_list))
+    MR.extend(P.map(get_rank, zip(gold_list, range(len(gold_list)))))
     return MR
