@@ -12,7 +12,7 @@ import tensorflow as tf
 import os
 import numpy as np
 import json
-from Sampler import SampleTransEData
+from Sampler import SampleTransEData, Sample_without_replacement
 import itertools
 import random
 import datetime
@@ -27,13 +27,13 @@ from pathos.threading import ThreadPool as Pool
 LEARNING_RATE = 0.01
 NUM_STEPS = 300000 #@myself: need to set this
 BATCH_SIZE = 128 #@myself: need to set this
-DISPLAY_STEP = 1000 #@myself: need to set this
-EVAL_STEP = 5 * DISPLAY_STEP
 NUM_TYPES_PER_BATCH = 128
+DISPLAY_STEP = 2000 #@myself: need to set this
 RHO = 0.005 #Desired average activation value
 BETA = 0.5
 MARGIN = 1
 BATCH_EVAL = 32
+NUM_EPOCHS = 1000
 # =============================================================================
 #  Network Parameters-1 #First let us solve only for Type loss
 # =============================================================================
@@ -301,7 +301,16 @@ with tf.Session(config = conf) as sess:
     sess.run(init)
 
     # Training
-    for step in range(1, NUM_STEPS+1): 
+    NOW_DISPLAY = False
+    epoch=1
+    step=1
+    visited_entities = set()
+    while (epoch < NUM_EPOCHS):
+        if len(visited_entities) > 0.9 * VOCABULARY_SIZE:
+            epoch += 1
+            visited_entities = set()
+            step=1
+            NOW_DISPLAY = True
         #prepare the data
         #first select the Types that will be in this batch
         indices = random.sample(range(len(types)),NUM_TYPES_PER_BATCH)
@@ -309,7 +318,11 @@ with tf.Session(config = conf) as sess:
         data = [types[i] for i in indices]
         data_flat = list(itertools.chain(*data))        
         # Get the next batch of input data
-        batch_x = random.sample(data_flat,BATCH_SIZE)
+        batch_x = Sample_without_replacement(data_flat, BATCH_SIZE, \
+                                 visited_entities, range(VOCABULARY_SIZE))
+            
+        #update visited_entities
+        visited_entities.update(batch_x)
         # Get the next batch of type labels
         batch_y = generate_labels(types,batch_x)        
         #for TransE loss part, get positive and negative samples
@@ -330,16 +343,18 @@ with tf.Session(config = conf) as sess:
                         })
         
         # Display logs per step
-        if step % DISPLAY_STEP == 0 or step == 1:
-            print('Step %i: Minibatch Loss: %f\n' % (step, l))
+        if step % DISPLAY_STEP == 0 or step == 1 or NOW_DISPLAY:
+            print('Epoch %i Step %i: Minibatch Loss: %f\n' % (epoch, step, l))
             l_array = [str(token) for token in l_array]
-            print('Step %i: Loss Array: %s\n' % (step,','.join(l_array)))
+            print('Epoch %i Step %i: Loss Array: %s\n' % (epoch, step,','.join(l_array)))
             saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"), step)
             with open(LOG_DIR+'/loss.txt','a+') as fp:
-                fp.write('Step %i: Minibatch Loss: %f\n' % (step, l))
-                fp.write('Step %i: Loss Array: %s\n'% (step,','.join(l_array)))
+                fp.write('Epoch %i Step %i: Minibatch Loss: %f\n' % \
+                                                     (epoch, step, l))
+                fp.write('Epoch %i Step %i: Loss Array: %s\n'% \
+                                         (epoch, step,','.join(l_array)))
                 
-        if step % EVAL_STEP == 0 or step == 1:
+        if NOW_DISPLAY or step == 1:
             # Evaluation on Training Data
             MRT = []
             MRH = []
@@ -350,7 +365,8 @@ with tf.Session(config = conf) as sess:
                 eval_batch_t = evalsubset_relations_train[j::skip_rate,2] 
                 assert eval_batch_h.shape[0]==BATCH_EVAL
                 
-                indexes_h, indexes_t = sess.run([indices_h,indices_t], feed_dict = \
+                indexes_h, indexes_t = sess.run([indices_h,indices_t], \
+                                        feed_dict = 
                                  {
                                     eval_h:eval_batch_h,                                
                                     eval_r:eval_batch_r,                                
@@ -365,6 +381,12 @@ with tf.Session(config = conf) as sess:
                 
 
             with open(LOG_DIR+'/progress.txt','a+') as fp:        
-                fp.write('Step %i: Minibatch MRT: %f\n' % (step, np.mean(MRT)))
-                fp.write('Step %i: Minibatch MRH: %f\n' % (step, np.mean(MRH)))
+                fp.write('Epoch %i Step %i: Minibatch MRT: %f\n' % (epoch, \
+                                                        step, np.mean(MRT)))
+                fp.write('Epoch %i Step %i: Minibatch MRH: %f\n' % (epoch, \
+                                                        step, np.mean(MRH)))
+
+        NOW_DISPLAY = False
+        step += 1
+        
 P.close()

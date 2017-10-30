@@ -90,6 +90,19 @@ def SampleTransEData(hDic,tDic,batch, valid_entities, Max_Tries = 100):
         neg_r.append(r_)
         neg_t.append(t_)                                          
     return pos_h,pos_r,pos_t,neg_h,neg_r,neg_t
+
+def Sample_without_replacement(data, SampleSize, Ssampled_list, Buffer):
+    Sdata = set(data)
+    
+    Sdata.difference_update(Ssampled_list)
+    
+    if len(Sdata) >= SampleSize:
+        return random.sample(Sdata,SampleSize)
+
+    else:
+        remaining = SampleSize - len(Sdata)
+        return random.sample(Buffer,remaining) + list(Sdata)
+    
             
     
 
