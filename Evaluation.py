@@ -30,4 +30,3 @@ def Evaluate_MR(gold_list, indices, P):
     
     MR.extend(P.map(get_rank, gold_list))
     return MR
-

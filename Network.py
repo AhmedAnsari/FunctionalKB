@@ -357,10 +357,11 @@ with tf.Session(config = conf) as sess:
                                     eval_t:eval_batch_t,
                                     eval_to_rank:range(VOCABULARY_SIZE) 
                                  })
-                mrt, mrh = P.map(Evaluate_MR,*[(eval_batch_t, eval_batch_h), (indexes_t, indexes_h), (P,P)])
+                mrt, mrh = map(Evaluate_MR,*[(eval_batch_t, eval_batch_h), (indexes_t, indexes_h), (P,P)])
                 MRT.extend(mrt)
                 MRH.extend(mrh)            
                 
             P.close()
             with open(LOG_DIR+'/progress.txt','a+') as fp:        
                 fp.write('Step %i: Minibatch MRT: %f\n' % (step, np.mean(MRT)))
+                fp.write('Step %i: Minibatch MRH: %f\n' % (step, np.mean(MRH)))
