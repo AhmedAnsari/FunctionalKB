@@ -28,12 +28,12 @@ LEARNING_RATE = 0.01
 NUM_STEPS = 300000 #@myself: need to set this
 BATCH_SIZE = 128 #@myself: need to set this
 DISPLAY_STEP = 1000 #@myself: need to set this
-EVAL_STEP = 10 * DISPLAY_STEP
+EVAL_STEP = 1 * DISPLAY_STEP
 NUM_TYPES_PER_BATCH = 64
 RHO = 0.005 #Desired average activation value
 BETA = 0.5
 MARGIN = 1
-BATCH_EVAL = 128
+BATCH_EVAL = 32
 # =============================================================================
 #  Network Parameters-1 #First let us solve only for Type loss
 # =============================================================================
@@ -294,6 +294,7 @@ conf = tf.ConfigProto()
 conf.gpu_options.allow_growth=True
 conf.log_device_placement=False #@myself: use this for debugging
 conf.allow_soft_placement=True
+P = Pool()
 with tf.Session(config = conf) as sess:
 
     # Run the initializer
@@ -343,7 +344,6 @@ with tf.Session(config = conf) as sess:
             MRT = []
             MRH = []
             skip_rate = int(evalsubset_relations_train.shape[0]/BATCH_EVAL)
-            P = Pool()
             for j in range(0, skip_rate):
                 eval_batch_h = evalsubset_relations_train[j::skip_rate,0]
                 eval_batch_r = evalsubset_relations_train[j::skip_rate,1] 
@@ -357,11 +357,14 @@ with tf.Session(config = conf) as sess:
                                     eval_t:eval_batch_t,
                                     eval_to_rank:range(VOCABULARY_SIZE) 
                                  })
-                mrt, mrh = map(Evaluate_MR,*[(eval_batch_t, eval_batch_h), (indexes_t, indexes_h), (P,P)])
+                mrt, mrh = map(Evaluate_MR,*[(eval_batch_t.tolist(),\
+                              eval_batch_h.tolist()), (indexes_t.tolist(),\
+                                                 indexes_h.tolist()), (P,P)])
                 MRT.extend(mrt)
                 MRH.extend(mrh)            
                 
-            P.close()
+
             with open(LOG_DIR+'/progress.txt','a+') as fp:        
                 fp.write('Step %i: Minibatch MRT: %f\n' % (step, np.mean(MRT)))
                 fp.write('Step %i: Minibatch MRH: %f\n' % (step, np.mean(MRH)))
+P.close()
