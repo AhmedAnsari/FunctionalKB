@@ -355,7 +355,7 @@ with tf.Session(config = conf) as sess:
                 fp.write('Epoch %i Step %i: Loss Array: %s\n'% \
                                          (epoch, step,','.join(l_array)))
                 
-        if NOW_DISPLAY or step == 1:
+        if (NOW_DISPLAY or step==1) and epoch%10==1:
             # Evaluation on Training Data
             MRT = []
             MRH = []
