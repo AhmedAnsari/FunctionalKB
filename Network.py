@@ -328,8 +328,8 @@ with tf.Session(config = conf) as sess:
         batch_y = generate_labels(types,batch_x)        
         #for TransE loss part, get positive and negative samples
         posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch = \
-        SampleTransEData(relations_dic_h, relations_dic_t,\
-                         batch_x, data_flat, 100)
+        SampleTransEData(relations_dic_h,relations_dic_t,\
+                         batch_x,VOCABULARY_SIZE)
         
         # Run optimization op (backprop) and cost op (to get loss value)
         _, l, l_array= sess.run([optimizer, loss, stacked_loss], feed_dict=\
