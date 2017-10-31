@@ -75,14 +75,14 @@ def generate_labels(data,batch):
 with tf.device(DEVICE):
     ent_embeddings = tf.get_variable(name='W_Ent',shape = [VOCABULARY_SIZE,\
                        EMBEDDING_SIZE],initializer = \
-                        tf.contrib.layers.xavier_initializer())
+                        tf.contrib.layers.xavier_initializer(uniform = False))
     
     
                                                
     #Define the relation embedding matrix to be uniform in a unit cube
     rel_embeddings = tf.get_variable(name='W_Rel',shape = [RELATIONS_SIZE,\
                        EMBEDDING_SIZE],initializer = \
-                        tf.contrib.layers.xavier_initializer())
+                        tf.contrib.layers.xavier_initializer(uniform = False))
 
 
 
@@ -137,39 +137,39 @@ with tf.device(DEVICE):
             
         'encoder_h1': tf.get_variable(name='W_encoder_h1',shape = \
                       [NUM_INPUT, NUM_HIDDEN_1],initializer = \
-                        tf.contrib.layers.xavier_initializer()),
+                        tf.contrib.layers.xavier_initializer(uniform = False)),
     
         'encoder_h2': tf.get_variable(name='W_encoder_h2',shape = \
                       [NUM_HIDDEN_1, NUM_HIDDEN_2],initializer = \
-                        tf.contrib.layers.xavier_initializer()),      
+                        tf.contrib.layers.xavier_initializer(uniform = False)),      
                                                                    
         'decoder_h1': tf.get_variable(name='W_decoder_h1',shape = \
                       [NUM_HIDDEN_2, NUM_HIDDEN_1],initializer = \
-                        tf.contrib.layers.xavier_initializer()),      
+                        tf.contrib.layers.xavier_initializer(uniform = False)),      
         'decoder_h2': tf.get_variable(name='W_decoder_h2',shape = \
                       [NUM_HIDDEN_1, NUM_INPUT],initializer = \
-                        tf.contrib.layers.xavier_initializer()),      
+                        tf.contrib.layers.xavier_initializer(uniform = False)),      
         'classification_h': tf.get_variable(name='W_classification_h',shape = \
-                            [NUM_HIDDEN_2, NUM_TYPES],initializer = \
-                            tf.contrib.layers.xavier_initializer()),
+                        [NUM_HIDDEN_2, NUM_TYPES],initializer = \
+                        tf.contrib.layers.xavier_initializer(uniform = False)),
     }
     
     biases = {
         'encoder_b1': tf.get_variable(name='W_encoder_b1',shape = \
                       [NUM_HIDDEN_1],initializer = \
-                        tf.contrib.layers.xavier_initializer()),
+                        tf.contrib.layers.xavier_initializer(uniform = False)),
         'encoder_b2': tf.get_variable(name='W_encoder_b2',shape = \
                       [NUM_HIDDEN_2],initializer = \
-                        tf.contrib.layers.xavier_initializer()),
+                        tf.contrib.layers.xavier_initializer(uniform = False)),
         'decoder_b1': tf.get_variable(name='W_decoder_b1',shape = \
                        [NUM_HIDDEN_1],initializer = \
-                        tf.contrib.layers.xavier_initializer()),      
+                        tf.contrib.layers.xavier_initializer(uniform = False)),      
         'decoder_b2': tf.get_variable(name='W_decoder_b2',shape = \
                       [NUM_INPUT],initializer = \
-                        tf.contrib.layers.xavier_initializer()),      
+                        tf.contrib.layers.xavier_initializer(uniform = False)),      
         'classification_b': tf.get_variable(name='W_classification_b',shape = \
-                            [NUM_TYPES],initializer = \
-                            tf.contrib.layers.xavier_initializer()),
+                        [NUM_TYPES],initializer = \
+                        tf.contrib.layers.xavier_initializer(uniform = False)),
     }
 
 # =============================================================================
@@ -279,7 +279,8 @@ loss = loss_autoenc + loss_classifier + loss_sparsity + \
 stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
                         loss_regulariation, loss_transe],axis = 0)
                                 
-optimizer = tf.train.RMSPropOptimizer(LEARNING_RATE).minimize(loss)
+#optimizer = tf.train.RMSPropOptimizer(LEARNING_RATE).minimize(loss)
+optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(loss)
 saver = tf.train.Saver()
 # =============================================================================
 #  Initialize the variables (i.e. assign their default value)
