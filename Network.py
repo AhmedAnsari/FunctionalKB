@@ -280,7 +280,8 @@ stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
                         loss_regulariation, loss_transe],axis = 0)
                                 
 #optimizer = tf.train.RMSPropOptimizer(LEARNING_RATE).minimize(loss)
-optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE).minimize(loss)
+optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.9,beta2=0.999,\
+                                   epsilon=1e-08).minimize(loss)
 saver = tf.train.Saver()
 # =============================================================================
 #  Initialize the variables (i.e. assign their default value)
@@ -361,7 +362,7 @@ with tf.Session(config = conf) as sess:
             # Evaluation on Training Data
             MRT = []
             MRH = []
-            skip_rate = int(evalsubset_relations[0]/BATCH_EVAL)
+            skip_rate = int(evalsubset_relations.shape[0]/BATCH_EVAL)
             for j in range(0, skip_rate):
                 eval_batch_h = evalsubset_relations[j::skip_rate,0]
                 eval_batch_r = evalsubset_relations[j::skip_rate,1] 
