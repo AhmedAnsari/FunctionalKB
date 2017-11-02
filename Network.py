@@ -12,7 +12,7 @@ import tensorflow as tf
 import os
 import numpy as np
 import json
-from Sampler import SampleTransEData, Sample_without_replacement
+from Sampler import SampleTransEData
 import itertools
 import random
 import datetime
@@ -53,11 +53,11 @@ relations_dic_h = pkl.load(open('relations_dic_h.pkl'))
 relations_dic_t = pkl.load(open('relations_dic_t.pkl'))
 #for evaluation during training
 #relations = np.array(json.load(open('relations_hrt.json')))
-evalsubset_relations_train = np.array(pkl.load(open\
+evalsubset_relations= np.array(pkl.load(open\
                ('evalsubset_relations_train.pkl','r')))
-evalsubset_relations_train = evalsubset_relations_train \
-     [0:len(evalsubset_relations_train) - \
-     len(evalsubset_relations_train) % BATCH_EVAL]
+evalsubset_relations = evalsubset_relations\
+     [0:len(evalsubset_relations) - \
+     len(evalsubset_relations) % BATCH_EVAL]
 NUM_TYPES = len(types)
 
 def generate_labels(data,batch):
@@ -357,37 +357,37 @@ with tf.Session(config = conf) as sess:
                 fp.write('Epoch %i : Loss Array: %s\n\n'% \
                                          (epoch,','.join(l_array)))
                 
-#        if (NOW_DISPLAY or step==1) and epoch%10==1:
-#            # Evaluation on Training Data
-#            MRT = []
-#            MRH = []
-#            skip_rate = int(evalsubset_relations_train.shape[0]/BATCH_EVAL)
-#            for j in range(0, skip_rate):
-#                eval_batch_h = evalsubset_relations_train[j::skip_rate,0]
-#                eval_batch_r = evalsubset_relations_train[j::skip_rate,1] 
-#                eval_batch_t = evalsubset_relations_train[j::skip_rate,2] 
-#                assert eval_batch_h.shape[0]==BATCH_EVAL
-#                
-#                indexes_h, indexes_t = sess.run([indices_h,indices_t], \
-#                                        feed_dict = 
-#                                 {
-#                                    eval_h:eval_batch_h,                                
-#                                    eval_r:eval_batch_r,                                
-#                                    eval_t:eval_batch_t,
-#                                    eval_to_rank:range(VOCABULARY_SIZE) 
-#                                 })
-#                mrt, mrh = map(Evaluate_MR,*[(eval_batch_t.tolist(),\
-#                              eval_batch_h.tolist()), (indexes_t.tolist(),\
-#                                                 indexes_h.tolist()), (P,P)])
-#                MRT.extend(mrt)
-#                MRH.extend(mrh)            
-#                
-#
-#            with open(LOG_DIR+'/progress.txt','a+') as fp:        
-#                fp.write('Epoch %i: Minibatch MRT: %f\n' % (epoch, \
-#                                                        np.mean(MRT)))
-#                fp.write('Epoch %i: Minibatch MRH: %f\n\n' % (epoch, \
-#                                                        np.mean(MRH)))
+        if (NOW_DISPLAY or step==1) and epoch%10==1:
+            # Evaluation on Training Data
+            MRT = []
+            MRH = []
+            skip_rate = int(evalsubset_relations[0]/BATCH_EVAL)
+            for j in range(0, skip_rate):
+                eval_batch_h = evalsubset_relations[j::skip_rate,0]
+                eval_batch_r = evalsubset_relations[j::skip_rate,1] 
+                eval_batch_t = evalsubset_relations[j::skip_rate,2] 
+                assert eval_batch_h.shape[0]==BATCH_EVAL
+                
+                indexes_h, indexes_t = sess.run([indices_h,indices_t], \
+                                        feed_dict = 
+                                 {
+                                    eval_h:eval_batch_h,                                
+                                    eval_r:eval_batch_r,                                
+                                    eval_t:eval_batch_t,
+                                    eval_to_rank:range(VOCABULARY_SIZE) 
+                                 })
+                mrt, mrh = map(Evaluate_MR,*[(eval_batch_t.tolist(),\
+                              eval_batch_h.tolist()), (indexes_t.tolist(),\
+                                                 indexes_h.tolist()), (P,P)])
+                MRT.extend(mrt)
+                MRH.extend(mrh)            
+                
+
+            with open(LOG_DIR+'/progress.txt','a+') as fp:        
+                fp.write('Epoch %i: Minibatch MRT: %f\n' % (epoch, \
+                                                        np.mean(MRT)))
+                fp.write('Epoch %i: Minibatch MRH: %f\n\n' % (epoch, \
+                                                        np.mean(MRH)))
 
         NOW_DISPLAY = False
         step += 1
