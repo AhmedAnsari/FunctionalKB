@@ -82,7 +82,12 @@ with open('relations_dic_h.pkl','w') as fp:
 with open('relations_dic_t.pkl','w') as fp:
     pkl.dump(relations_dic_t,fp)
     
-#only during evaluation
-evalsubset_relations_train = random.sample(relations,int(0.1*len(relations)))
+#only during evaluation    
+__relations = pd.read_table('test.txt',header=None)
+_head = [e2id[ent] for ent in __relations[0].tolist()]
+_tail = [e2id[ent] for ent in __relations[1].tolist()]
+_relations = [r2id[rel] for rel in __relations[2].tolist()]
+
+relations_test = zip(_head,_relations,_tail) #list of tuples of form (h,r,t)
 with open('evalsubset_relations_train.pkl','w') as fp:
-    pkl.dump(evalsubset_relations_train,fp)
+    pkl.dump(relations_test,fp)
