@@ -19,7 +19,7 @@ import datetime
 import cPickle as pkl
 from Evaluation import Evaluate_MR
 from pathos.threading import ThreadPool as Pool
-
+from copy import deepcopy
 
 # =============================================================================
 #  Training Parameters
@@ -42,6 +42,7 @@ NUM_HIDDEN_2 = 256 # 2nd layer num features (the latent dim)
 NUM_INPUT = EMBEDDING_SIZE = 64 #@myself: need to set this
 VOCABULARY_SIZE = 14951
 RELATIONS_SIZE = 1345
+TOT_RELATIONS = len(json.load(open('relations_hrt.json')))
 LOG_DIR = 'Logs/'+str(datetime.datetime.now())
 DEVICE = '/cpu:0'
 # =============================================================================
@@ -50,7 +51,6 @@ DEVICE = '/cpu:0'
 types = json.load(open('types_fb.json'))
 relations_dic_h = pkl.load(open('relations_dic_h.pkl'))
 relations_dic_t = pkl.load(open('relations_dic_t.pkl'))
-
 #for evaluation during training
 #relations = np.array(json.load(open('relations_hrt.json')))
 evalsubset_relations_train = np.array(pkl.load(open\
@@ -305,13 +305,17 @@ with tf.Session(config = conf) as sess:
     NOW_DISPLAY = False
     epoch=1
     step=1
-    visited_entities = set()
+    temp_hdic = deepcopy(relations_dic_h)
+    temp_tdic = deepcopy(relations_dic_t)    
+    visited_relations = set()
     while (epoch < NUM_EPOCHS):
-        if len(visited_entities) > 0.9 * VOCABULARY_SIZE:
+        if len(visited_relations) > 0.9 * TOT_RELATIONS:
             epoch += 1
-            visited_entities = set()
+            visited_relations= set()
             step=1
             NOW_DISPLAY = True
+            temp_hdic = deepcopy(relations_dic_h)
+            temp_tdic = deepcopy(relations_dic_t)
         #prepare the data
         #first select the Types that will be in this batch
         indices = random.sample(range(len(types)),NUM_TYPES_PER_BATCH)
@@ -319,17 +323,15 @@ with tf.Session(config = conf) as sess:
         data = [types[i] for i in indices]
         data_flat = list(itertools.chain(*data))        
         # Get the next batch of input data
-        batch_x = Sample_without_replacement(data_flat, BATCH_SIZE, \
-                                 visited_entities, range(VOCABULARY_SIZE))
+        batch_x = random.sample(data_flat, BATCH_SIZE)
             
-        #update visited_entities
-        visited_entities.update(batch_x)
         # Get the next batch of type labels
         batch_y = generate_labels(types,batch_x)        
         #for TransE loss part, get positive and negative samples
         posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch = \
-        SampleTransEData(relations_dic_h,relations_dic_t,\
-                         batch_x,VOCABULARY_SIZE)
+        SampleTransEData(temp_hdic, temp_tdic, relations_dic_h, \
+                         relations_dic_t, batch_x, VOCABULARY_SIZE, 5)
+        visited_relations.update(zip(posh_batch,posr_batch,post_batch))
         
         # Run optimization op (backprop) and cost op (to get loss value)
         _, l, l_array= sess.run([optimizer, loss, stacked_loss], feed_dict=\
@@ -344,48 +346,48 @@ with tf.Session(config = conf) as sess:
                         })
         
         # Display logs per step
-        if step % DISPLAY_STEP == 0 or step == 1 or NOW_DISPLAY:
-            print('Epoch %i Step %i: Minibatch Loss: %f\n' % (epoch, step, l))
+        if NOW_DISPLAY or step==1:
+            print('Epoch %i : Minibatch Loss: %f\n' % (epoch, l))
             l_array = [str(token) for token in l_array]
-            print('Epoch %i Step %i: Loss Array: %s\n' % (epoch, step,','.join(l_array)))
+            print('Epoch %i : Loss Array: %s\n' % (epoch,','.join(l_array)))
             saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"), step)
             with open(LOG_DIR+'/loss.txt','a+') as fp:
-                fp.write('Epoch %i Step %i: Minibatch Loss: %f\n' % \
-                                                     (epoch, step, l))
-                fp.write('Epoch %i Step %i: Loss Array: %s\n'% \
-                                         (epoch, step,','.join(l_array)))
+                fp.write('Epoch %i : Minibatch Loss: %f\n' % \
+                                                     (epoch, l))
+                fp.write('Epoch %i : Loss Array: %s\n\n'% \
+                                         (epoch,','.join(l_array)))
                 
-        if (NOW_DISPLAY or step==1) and epoch%10==1:
-            # Evaluation on Training Data
-            MRT = []
-            MRH = []
-            skip_rate = int(evalsubset_relations_train.shape[0]/BATCH_EVAL)
-            for j in range(0, skip_rate):
-                eval_batch_h = evalsubset_relations_train[j::skip_rate,0]
-                eval_batch_r = evalsubset_relations_train[j::skip_rate,1] 
-                eval_batch_t = evalsubset_relations_train[j::skip_rate,2] 
-                assert eval_batch_h.shape[0]==BATCH_EVAL
-                
-                indexes_h, indexes_t = sess.run([indices_h,indices_t], \
-                                        feed_dict = 
-                                 {
-                                    eval_h:eval_batch_h,                                
-                                    eval_r:eval_batch_r,                                
-                                    eval_t:eval_batch_t,
-                                    eval_to_rank:range(VOCABULARY_SIZE) 
-                                 })
-                mrt, mrh = map(Evaluate_MR,*[(eval_batch_t.tolist(),\
-                              eval_batch_h.tolist()), (indexes_t.tolist(),\
-                                                 indexes_h.tolist()), (P,P)])
-                MRT.extend(mrt)
-                MRH.extend(mrh)            
-                
-
-            with open(LOG_DIR+'/progress.txt','a+') as fp:        
-                fp.write('Epoch %i Step %i: Minibatch MRT: %f\n' % (epoch, \
-                                                        step, np.mean(MRT)))
-                fp.write('Epoch %i Step %i: Minibatch MRH: %f\n' % (epoch, \
-                                                        step, np.mean(MRH)))
+#        if (NOW_DISPLAY or step==1) and epoch%10==1:
+#            # Evaluation on Training Data
+#            MRT = []
+#            MRH = []
+#            skip_rate = int(evalsubset_relations_train.shape[0]/BATCH_EVAL)
+#            for j in range(0, skip_rate):
+#                eval_batch_h = evalsubset_relations_train[j::skip_rate,0]
+#                eval_batch_r = evalsubset_relations_train[j::skip_rate,1] 
+#                eval_batch_t = evalsubset_relations_train[j::skip_rate,2] 
+#                assert eval_batch_h.shape[0]==BATCH_EVAL
+#                
+#                indexes_h, indexes_t = sess.run([indices_h,indices_t], \
+#                                        feed_dict = 
+#                                 {
+#                                    eval_h:eval_batch_h,                                
+#                                    eval_r:eval_batch_r,                                
+#                                    eval_t:eval_batch_t,
+#                                    eval_to_rank:range(VOCABULARY_SIZE) 
+#                                 })
+#                mrt, mrh = map(Evaluate_MR,*[(eval_batch_t.tolist(),\
+#                              eval_batch_h.tolist()), (indexes_t.tolist(),\
+#                                                 indexes_h.tolist()), (P,P)])
+#                MRT.extend(mrt)
+#                MRH.extend(mrh)            
+#                
+#
+#            with open(LOG_DIR+'/progress.txt','a+') as fp:        
+#                fp.write('Epoch %i: Minibatch MRT: %f\n' % (epoch, \
+#                                                        np.mean(MRT)))
+#                fp.write('Epoch %i: Minibatch MRH: %f\n\n' % (epoch, \
+#                                                        np.mean(MRH)))
 
         NOW_DISPLAY = False
         step += 1
