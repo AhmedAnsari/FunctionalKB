@@ -351,6 +351,8 @@ with tf.Session(config = conf) as sess:
             print('Epoch %i : Minibatch Loss: %f\n' % (epoch, l))
             l_array = [str(token) for token in l_array]
             print('Epoch %i : Loss Array: %s\n' % (epoch,','.join(l_array)))
+            if not os.path.exists(LOG_DIR):
+                os.makedirs(LOG_DIR)
             saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"), step)
             with open(LOG_DIR+'/loss.txt','a+') as fp:
                 fp.write('Epoch %i : Minibatch Loss: %f\n' % \
@@ -383,7 +385,8 @@ with tf.Session(config = conf) as sess:
                 MRT.extend(mrt)
                 MRH.extend(mrh)            
                 
-
+            if not os.path.exists(LOG_DIR):
+                os.makedirs(LOG_DIR)
             with open(LOG_DIR+'/progress.txt','a+') as fp:        
                 fp.write('Epoch %i: Minibatch MRT: %f\n' % (epoch, \
                                                         np.mean(MRT)))
