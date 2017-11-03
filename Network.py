@@ -52,7 +52,6 @@ types = json.load(open('types_fb.json'))
 relations_dic_h = pkl.load(open('relations_dic_h.pkl'))
 relations_dic_t = pkl.load(open('relations_dic_t.pkl'))
 #for evaluation during training
-#relations = np.array(json.load(open('relations_hrt.json')))
 evalsubset_relations= np.array(pkl.load(open\
                ('evalsubset_relations_train.pkl','r')))
 evalsubset_relations = evalsubset_relations\
@@ -127,7 +126,8 @@ eval_t_e = tf.nn.embedding_lookup(ent_embeddings, eval_t)
 eval_r_e = tf.nn.embedding_lookup(rel_embeddings, eval_r)
 eval_to_rank_e = tf.nn.embedding_lookup(ent_embeddings, eval_to_rank)
 
-
+normalize_entity_op = ent_embeddings.assign(tf.clip_by_norm(ent_embeddings, \
+                                                    clip_norm=1, axes=1))
 
 
 
@@ -317,6 +317,10 @@ with tf.Session(config = conf) as sess:
             NOW_DISPLAY = True
             temp_hdic = deepcopy(relations_dic_h)
             temp_tdic = deepcopy(relations_dic_t)
+        
+        #normalize the entities before every batch
+        sess.run(normalize_entity_op)
+        
         #prepare the data
         #first select the Types that will be in this batch
         indices = random.sample(range(len(types)),NUM_TYPES_PER_BATCH)
@@ -324,10 +328,10 @@ with tf.Session(config = conf) as sess:
         data = [types[i] for i in indices]
         data_flat = list(itertools.chain(*data))        
         # Get the next batch of input data
-        batch_x = random.sample(data_flat, BATCH_SIZE)
-            
+        batch_x = random.sample(data_flat, BATCH_SIZE)            
         # Get the next batch of type labels
         batch_y = generate_labels(types,batch_x)        
+
         #for TransE loss part, get positive and negative samples
         posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch = \
         SampleTransEData(temp_hdic, temp_tdic, relations_dic_h, \
