@@ -349,8 +349,8 @@ with tf.Session(config = conf) as sess:
             negh_batch.extend(sample[3])
             negr_batch.extend(sample[4])
             negt_batch.extend(sample[5])
-            visited_relations.update(zip(sample[0:3]))
-        
+            visited_relations.update(zip(sample[0],sample[1],sample[2]))
+#        print(len(visited_relations))
         # Run optimization op (backprop) and cost op (to get loss value)
         _, l_array = sess.run([optimizer, stacked_loss], feed_dict=\
                         {
