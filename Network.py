@@ -24,11 +24,9 @@ from copy import deepcopy
 # =============================================================================
 #  Training Parameters
 # =============================================================================
-LEARNING_RATE = 0.01
-NUM_STEPS = 300000 #@myself: need to set this
+LEARNING_RATE = 0.001
 BATCH_SIZE = 128 #@myself: need to set this
 NUM_TYPES_PER_BATCH = 128
-DISPLAY_STEP = 2000 #@myself: need to set this
 RHO = 0.005 #Desired average activation value
 BETA = 0.5
 MARGIN = 1
@@ -273,15 +271,22 @@ pos = tf.reduce_sum((pos_h_e + pos_r_e - pos_t_e) ** 2, 1, keep_dims = True)
 neg = tf.reduce_sum((neg_h_e + neg_r_e - neg_t_e) ** 2, 1, keep_dims = True)		
 loss_transe = tf.reduce_sum(tf.maximum(pos - neg + MARGIN, 0))
     
-loss = loss_autoenc + loss_classifier + loss_sparsity + \
-        loss_regulariation + loss_transe
+loss_nontranse = loss_autoenc + loss_classifier + loss_sparsity + \
+        loss_regulariation
+
 
 stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
                         loss_regulariation, loss_transe],axis = 0)
                                 
 #optimizer = tf.train.RMSPropOptimizer(LEARNING_RATE).minimize(loss)
 optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.9,beta2=0.999,\
-                                   epsilon=1e-08).minimize(loss)
+                                   epsilon=1e-08)
+
+grads_vars_non_transe = optimizer.compute_gradients(loss_nontranse)
+grads_vars_transe = optimizer.compute_gradients(loss_transe)
+train_op_non_transe = optimizer.apply_gradients(grads_vars_non_transe)
+train_op_transe = optimizer.apply_gradients(grads_vars_transe)
+
 saver = tf.train.Saver()
 # =============================================================================
 #  Initialize the variables (i.e. assign their default value)
@@ -319,7 +324,7 @@ with tf.Session(config = conf) as sess:
             temp_tdic = deepcopy(relations_dic_t)
         
         #normalize the entities before every batch
-        sess.run(normalize_entity_op)
+#        sess.run(normalize_entity_op)
         
         #prepare the data
         #first select the Types that will be in this batch
@@ -334,22 +339,36 @@ with tf.Session(config = conf) as sess:
 
         #for TransE loss part, get positive and negative samples
         posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch = \
-        SampleTransEData(temp_hdic, temp_tdic, relations_dic_h, \
-                         relations_dic_t, batch_x, VOCABULARY_SIZE, 5)
-        visited_relations.update(zip(posh_batch,posr_batch,post_batch))
+        [],[],[],[],[],[]
+        for try_sample in range(10):
+            sample = SampleTransEData(temp_hdic, temp_tdic, relations_dic_h, \
+                             relations_dic_t, batch_x, VOCABULARY_SIZE, 5)
+            posh_batch.extend(sample[0])
+            posr_batch.extend(sample[1])
+            post_batch.extend(sample[2])
+            negh_batch.extend(sample[3])
+            negr_batch.extend(sample[4])
+            negt_batch.extend(sample[5])
         
+        visited_relations.update(zip(posh_batch,posr_batch,post_batch))
+        print(len(visited_relations))
         # Run optimization op (backprop) and cost op (to get loss value)
-        _, l, l_array= sess.run([optimizer, loss, stacked_loss], feed_dict=\
+        sess.run([train_op_non_transe], feed_dict=\
                         {
-                            X: batch_x,Y:batch_y,
+                            X: batch_x,Y:batch_y                  
+                        })
+        _, l_array = sess.run([train_op_transe, stacked_loss], feed_dict=\
+                        {
+                            X: batch_x,
+                            Y:batch_y,
                             pos_h:posh_batch,
                             pos_r:posr_batch,
                             pos_t:post_batch,                        
                             neg_h:negh_batch,
                             neg_r:negr_batch,
-                            neg_t:negt_batch,                        
+                            neg_t:negt_batch,                                    
                         })
-        
+        l = np.sum(l_array)
         # Display logs per step
         if NOW_DISPLAY or step==1:
             print('Epoch %i : Minibatch Loss: %f\n' % (epoch, l))
