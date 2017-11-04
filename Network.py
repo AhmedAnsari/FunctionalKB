@@ -274,18 +274,18 @@ loss_transe = tf.reduce_sum(tf.maximum(pos - neg + MARGIN, 0))
 loss_nontranse = loss_autoenc + loss_classifier + loss_sparsity + \
         loss_regulariation
 
-
+loss = loss_nontranse + loss_transe
 stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
                         loss_regulariation, loss_transe],axis = 0)
                                 
 #optimizer = tf.train.RMSPropOptimizer(LEARNING_RATE).minimize(loss)
 optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.9,beta2=0.999,\
-                                   epsilon=1e-08)
+                                   epsilon=1e-08).minimize(loss)
 
-grads_vars_non_transe = optimizer.compute_gradients(loss_nontranse)
-grads_vars_transe = optimizer.compute_gradients(loss_transe)
-train_op_non_transe = optimizer.apply_gradients(grads_vars_non_transe)
-train_op_transe = optimizer.apply_gradients(grads_vars_transe)
+#grads_vars_non_transe = optimizer.compute_gradients(loss_nontranse)
+#grads_vars_transe = optimizer.compute_gradients(loss_transe)
+#train_op_non_transe = optimizer.apply_gradients(grads_vars_non_transe)
+#train_op_transe = optimizer.apply_gradients(grads_vars_transe)
 
 saver = tf.train.Saver()
 # =============================================================================
@@ -349,15 +349,10 @@ with tf.Session(config = conf) as sess:
             negh_batch.extend(sample[3])
             negr_batch.extend(sample[4])
             negt_batch.extend(sample[5])
+            visited_relations.update(zip(sample[0:3]))
         
-        visited_relations.update(zip(posh_batch,posr_batch,post_batch))
-        print(len(visited_relations))
         # Run optimization op (backprop) and cost op (to get loss value)
-        sess.run([train_op_non_transe], feed_dict=\
-                        {
-                            X: batch_x,Y:batch_y                  
-                        })
-        _, l_array = sess.run([train_op_transe, stacked_loss], feed_dict=\
+        _, l_array = sess.run([optimizer, stacked_loss], feed_dict=\
                         {
                             X: batch_x,
                             Y:batch_y,
