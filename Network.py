@@ -12,7 +12,7 @@ import tensorflow as tf
 import os
 import numpy as np
 import json
-from Sampler import SampleTransEData
+from Sampler import SampleTransEData,SampleData
 import itertools
 import random
 import datetime
@@ -20,6 +20,7 @@ import cPickle as pkl
 from Evaluation import Evaluate_MR
 from pathos.threading import ThreadPool as Pool
 from copy import deepcopy
+import time
 
 # =============================================================================
 #  Training Parameters
@@ -40,7 +41,6 @@ NUM_HIDDEN_2 = 256 # 2nd layer num features (the latent dim)
 NUM_INPUT = EMBEDDING_SIZE = 64 #@myself: need to set this
 VOCABULARY_SIZE = 14951
 RELATIONS_SIZE = 1345
-TOT_RELATIONS = len(json.load(open('relations_hrt.json')))
 LOG_DIR = 'Logs/'+str(datetime.datetime.now())
 DEVICE = '/cpu:0'
 # =============================================================================
@@ -55,6 +55,8 @@ evalsubset_relations= np.array(pkl.load(open\
 evalsubset_relations = evalsubset_relations\
      [0:len(evalsubset_relations) - \
      len(evalsubset_relations) % BATCH_EVAL]
+relations = json.load(open('relations_hrt.json'))
+TOT_RELATIONS = len(json.load(open('relations_hrt.json')))
 NUM_TYPES = len(types)
 
 def generate_labels(data,batch):
@@ -279,7 +281,7 @@ stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
                         loss_regulariation, loss_transe],axis = 0)
                                 
 #optimizer = tf.train.RMSPropOptimizer(LEARNING_RATE).minimize(loss)
-optimizer = tf.train.AdamOptimizer(learning_rate=1e-4,beta1=0.9,beta2=0.999,\
+optimizer = tf.train.AdamOptimizer(learning_rate=1e-2,beta1=0.9,beta2=0.999,\
                                    epsilon=1e-08).minimize(loss)
 
 #grads_vars_non_transe = optimizer.compute_gradients(loss_nontranse)
@@ -313,49 +315,28 @@ with tf.Session(config = conf) as sess:
     step=1
     temp_hdic = deepcopy(relations_dic_h)
     temp_tdic = deepcopy(relations_dic_t)    
-    visited_relations = set()
+    temp_relations = deepcopy(relations)
+
     while (epoch < NUM_EPOCHS):
-        if len(visited_relations) > 0.9 * TOT_RELATIONS:
+        if len(temp_relations) < 0.1 * TOT_RELATIONS:
             epoch += 1
-            visited_relations= set()
             step=1
             NOW_DISPLAY = True
             temp_hdic = deepcopy(relations_dic_h)
             temp_tdic = deepcopy(relations_dic_t)
-        
-        #normalize the entities before every batch
-#        sess.run(normalize_entity_op)
-        
+            temp_relations = deepcopy(relations)            
+            
         #prepare the data
-        #first select the Types that will be in this batch
-        indices = random.sample(range(len(types)),NUM_TYPES_PER_BATCH)
-        #then randomly sample data from these types
-        data = [types[i] for i in indices]
-        data_flat = list(itertools.chain(*data))        
-        # Get the next batch of input data
-        batch_x = random.sample(data_flat, BATCH_SIZE)            
+        tame = time.time()        
+        posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch,batch_x=\
+        SampleData(temp_relations,2048,128,relations_dic_h,relations_dic_t,VOCABULARY_SIZE,5)
         # Get the next batch of type labels
         batch_y = generate_labels(types,batch_x)        
-
-        #for TransE loss part, get positive and negative samples
-        posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch = \
-        [],[],[],[],[],[]
-        for try_sample in range(10):
-            sample = SampleTransEData(temp_hdic, temp_tdic, relations_dic_h, \
-                             relations_dic_t, batch_x, VOCABULARY_SIZE, 5)
-            posh_batch.extend(sample[0])
-            posr_batch.extend(sample[1])
-            post_batch.extend(sample[2])
-            negh_batch.extend(sample[3])
-            negr_batch.extend(sample[4])
-            negt_batch.extend(sample[5])
-            visited_relations.update(zip(sample[0],sample[1],sample[2]))
-#        print(len(visited_relations))
         # Run optimization op (backprop) and cost op (to get loss value)
         _, l_array = sess.run([optimizer, stacked_loss], feed_dict=\
                         {
                             X: batch_x,
-                            Y:batch_y,
+                            Y: batch_y,
                             pos_h:posh_batch,
                             pos_r:posr_batch,
                             pos_t:post_batch,                        
@@ -364,6 +345,8 @@ with tf.Session(config = conf) as sess:
                             neg_t:negt_batch,                                    
                         })
         l = np.sum(l_array)
+        print(time.time()-tame)
+        print(len(temp_relations))        
         # Display logs per step
         if NOW_DISPLAY or step==1:
             print('Epoch %i : Minibatch Loss: %f\n' % (epoch, l))
@@ -378,7 +361,7 @@ with tf.Session(config = conf) as sess:
                 fp.write('Epoch %i : Loss Array: %s\n\n'% \
                                          (epoch,','.join(l_array)))
                 
-        if (NOW_DISPLAY or step==1) and epoch%10==1:
+        if (NOW_DISPLAY or step==1) and epoch%5==1:
             # Evaluation on Training Data
             MRT = []
             MRH = []

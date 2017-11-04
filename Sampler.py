@@ -114,6 +114,56 @@ def SampleTransEData(temp_hDic,temp_tDic,hDic,tDic,batch,VOCABULARY_SIZE=14951\
                 neg_t.append(t_)                                 
     return pos_h,pos_r,pos_t,neg_h,neg_r,neg_t
 
+def SampleData(relations,Nsamples,NBatchX,hDic,tDic,VOCABULARY_SIZE=14951\
+                     , PostoNegratio = 3):
+    pos_h = []
+    pos_r = []
+    pos_t = []
+    neg_h = []
+    neg_r = []
+    neg_t = []
+    
+    temp = random.sample(relations,int(Nsamples/PostoNegratio))
+    ents = []
+    for h,r,t in temp:
+        relations.remove([h,r,t])
+        ents.extend([h,t])
+        for _ in range(PostoNegratio):
+            if random.random()>0.5:
+                h_ = h
+                r_ = r
+                while True:
+                    t_ = random.choice(range(VOCABULARY_SIZE))
+                    if (r_,t_) not in hDic[h_]:
+                        break         
+                pos_h.append(h)
+                pos_r.append(r)
+                pos_t.append(t)
+                neg_h.append(h_)
+                neg_r.append(r_)
+                neg_t.append(t_)
+            else:
+                t_ = t
+                r_ = r
+                while True:
+                    h_ = random.choice(range(VOCABULARY_SIZE))
+                    if (h_,r_) not in tDic[t_]:
+                        break
+                    
+                pos_h.append(h)
+                pos_r.append(r)
+                pos_t.append(t)
+                neg_h.append(h_)
+                neg_r.append(r_)
+                neg_t.append(t_)      
+    
+    ents = list(set(ents))
+    X = random.sample(ents,NBatchX)
+    
+    return pos_h,pos_r,pos_t,neg_h,neg_r,neg_t,X
+    
+                
+                
 def Sample_without_replacement(data, SampleSize, Ssampled_list, Buffer):
     Sdata = set(data)
     
