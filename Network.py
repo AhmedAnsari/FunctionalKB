@@ -329,9 +329,9 @@ with tf.Session(config = conf) as sess:
         #prepare the data
         tame = time.time()        
         posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch,batch_x=\
-        SampleData(temp_relations,2048,128,relations_dic_h,relations_dic_t,VOCABULARY_SIZE,5)
+        SampleData(temp_relations,128*5,128,relations_dic_h,relations_dic_t,VOCABULARY_SIZE,5)
         # Get the next batch of type labels
-        batch_y = generate_labels(types,batch_x)        
+        batch_y = generate_labels(types,batch_x)                        
         # Run optimization op (backprop) and cost op (to get loss value)
         _, l_array = sess.run([optimizer, stacked_loss], feed_dict=\
                         {
@@ -344,9 +344,7 @@ with tf.Session(config = conf) as sess:
                             neg_r:negr_batch,
                             neg_t:negt_batch,                                    
                         })
-        l = np.sum(l_array)
-        print(time.time()-tame)
-        print(len(temp_relations))        
+        l = np.sum(l_array)     
         # Display logs per step
         if NOW_DISPLAY or step==1:
             print('Epoch %i : Minibatch Loss: %f\n' % (epoch, l))
