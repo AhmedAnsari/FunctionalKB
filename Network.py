@@ -21,7 +21,7 @@ from Evaluation import Evaluate_MR
 from pathos.threading import ThreadPool as Pool
 from copy import deepcopy
 import time
-
+from numba import jit
 # =============================================================================
 #  Training Parameters
 # =============================================================================
@@ -33,6 +33,8 @@ BETA = 0.5
 MARGIN = 1
 BATCH_EVAL = 32
 NUM_EPOCHS = 1000
+Pos2NegRatio_Transe = 5
+Nsamples_Transe = 128*Pos2NegRatio_Transe
 # =============================================================================
 #  Network Parameters-1 #First let us solve only for Type loss
 # =============================================================================
@@ -47,6 +49,7 @@ DEVICE = '/cpu:0'
 #  Import data regarding embedding relations and type information
 # =============================================================================
 types = json.load(open('types_fb.json'))
+ent2type = pkl.load(open('ent2type.pkl'))
 relations_dic_h = pkl.load(open('relations_dic_h.pkl'))
 relations_dic_t = pkl.load(open('relations_dic_t.pkl'))
 #for evaluation during training
@@ -59,12 +62,13 @@ relations = json.load(open('relations_hrt.json'))
 TOT_RELATIONS = len(json.load(open('relations_hrt.json')))
 NUM_TYPES = len(types)
 
-def generate_labels(data,batch):
+@jit
+def generate_labels(batch):
     out = []
     for x in batch:
-        out.append(len(data)*[0])
-        for i in range(len(data)):
-            if x in data[i]:
+        out.append(NUM_TYPES*[0])
+        for i in range(NUM_TYPES):
+            if x in ent2type[i]:
                 out[-1][i]=1                    
     return out
 # =============================================================================
@@ -312,26 +316,27 @@ with tf.Session(config = conf) as sess:
     # Training
     NOW_DISPLAY = False
     epoch=1
-    step=1
-    temp_hdic = deepcopy(relations_dic_h)
-    temp_tdic = deepcopy(relations_dic_t)    
-    temp_relations = deepcopy(relations)
+    step=1    
+    temp_relations = dict.fromkeys([tuple(v) for v in relations])
 
     while (epoch < NUM_EPOCHS):
         if len(temp_relations) < 0.1 * TOT_RELATIONS:
             epoch += 1
             step=1
             NOW_DISPLAY = True
-            temp_hdic = deepcopy(relations_dic_h)
-            temp_tdic = deepcopy(relations_dic_t)
-            temp_relations = deepcopy(relations)            
+            temp_relations = dict.fromkeys([tuple(v) for v in relations])
             
         #prepare the data
-        tame = time.time()        
+#        tame = time.time()        
         posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch,batch_x=\
-        SampleData(temp_relations,128*5,128,relations_dic_h,relations_dic_t,VOCABULARY_SIZE,5)
+        SampleData(temp_relations,Nsamples_Transe,BATCH_SIZE,relations_dic_h,\
+                   relations_dic_t,VOCABULARY_SIZE,Pos2NegRatio_Transe)
+#        print(time.time()-tame)
+#        tame = time.time()        
         # Get the next batch of type labels
-        batch_y = generate_labels(types,batch_x)                        
+        batch_y = generate_labels(batch_x)                        
+#        print(time.time()-tame)   
+#        tame = time.time()        
         # Run optimization op (backprop) and cost op (to get loss value)
         _, l_array = sess.run([optimizer, stacked_loss], feed_dict=\
                         {
@@ -344,6 +349,7 @@ with tf.Session(config = conf) as sess:
                             neg_r:negr_batch,
                             neg_t:negt_batch,                                    
                         })
+#        print(time.time()-tame)           
         l = np.sum(l_array)     
         # Display logs per step
         if NOW_DISPLAY or step==1:

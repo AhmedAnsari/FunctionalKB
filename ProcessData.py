@@ -63,6 +63,15 @@ for key,value_list in types_wiki.items():
 #a type which contains all the entities belonging to that type
 with open('types_fb.json','w') as fp:
     fp.write(json.dumps(types_fb,fp))
+    
+ent2type = defaultdict(set)
+for _type in range(len(types_fb)):
+    for ent in types_fb[_type]:
+        ent2type[ent].add(_type)
+        
+with open('ent2type.pkl','w') as fp:        
+    pkl.dump(ent2type,fp)
+    
 
 
 #save the set of relations in the form (h,r,t) tuples    
@@ -70,11 +79,11 @@ with open('relations_hrt.json','w') as fp:
     fp.write(json.dumps(relations,fp))
     
 #make a dictionary of relations
-relations_dic_h = defaultdict(list)
-relations_dic_t = defaultdict(list)
+relations_dic_h = defaultdict(set)
+relations_dic_t = defaultdict(set)
 for h,r,t in relations:    
-        relations_dic_h[h].append((r,t))
-        relations_dic_t[t].append((h,r))        
+        relations_dic_h[h].add((r,t))
+        relations_dic_t[t].add((h,r))        
     
 #save the set of relations in the form of dictionaries
 with open('relations_dic_h.pkl','w') as fp:
@@ -91,3 +100,10 @@ _relations = [r2id[rel] for rel in __relations[2].tolist()]
 relations_test = zip(_head,_relations,_tail) #list of tuples of form (h,r,t)
 with open('evalsubset_relations_train.pkl','w') as fp:
     pkl.dump(relations_test,fp)
+    
+    
+    
+    
+    
+    
+    

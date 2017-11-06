@@ -115,7 +115,7 @@ def SampleTransEData(temp_hDic,temp_tDic,hDic,tDic,batch,VOCABULARY_SIZE=14951\
     return pos_h,pos_r,pos_t,neg_h,neg_r,neg_t
 
 def SampleData(relations,Nsamples,NBatchX,hDic,tDic,VOCABULARY_SIZE=14951\
-                     , PostoNegratio = 3):
+                     ,PostoNegratio = 3):
     pos_h = []
     pos_r = []
     pos_t = []
@@ -124,10 +124,11 @@ def SampleData(relations,Nsamples,NBatchX,hDic,tDic,VOCABULARY_SIZE=14951\
     neg_t = []
     
     temp = random.sample(relations,int(Nsamples/PostoNegratio))
-    ents = []
+    ents = set()
+    
     for h,r,t in temp:
-        relations.remove([h,r,t])
-        ents.extend([h,t])
+        del relations[(h,r,t)]
+        ents.update(set([h,t]))
         for _ in range(PostoNegratio):
             if random.random()>0.5:
                 h_ = h
@@ -156,8 +157,8 @@ def SampleData(relations,Nsamples,NBatchX,hDic,tDic,VOCABULARY_SIZE=14951\
                 neg_h.append(h_)
                 neg_r.append(r_)
                 neg_t.append(t_)      
-    
-    ents = list(set(ents))
+                
+    ents = list(ents)
     X = random.sample(ents,NBatchX)
     
     return pos_h,pos_r,pos_t,neg_h,neg_r,neg_t,X
