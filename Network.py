@@ -25,16 +25,15 @@ from numba import jit
 # =============================================================================
 #  Training Parameters
 # =============================================================================
-LEARNING_RATE = 0.001
-BATCH_SIZE = 128 #@myself: need to set this
-NUM_TYPES_PER_BATCH = 128
+LEARNING_RATE = 1e-2
+BATCH_SIZE = 32 #@myself: need to set this
 RHO = 0.005 #Desired average activation value
 BETA = 0.5
 MARGIN = 1
 BATCH_EVAL = 32
 NUM_EPOCHS = 1000
-Pos2NegRatio_Transe = 5
-Nsamples_Transe = 128*Pos2NegRatio_Transe
+Pos2NegRatio_Transe = 20
+Nsamples_Transe = 32*Pos2NegRatio_Transe
 # =============================================================================
 #  Network Parameters-1 #First let us solve only for Type loss
 # =============================================================================
@@ -285,7 +284,7 @@ stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
                         loss_regulariation, loss_transe],axis = 0)
                                 
 #optimizer = tf.train.RMSPropOptimizer(LEARNING_RATE).minimize(loss)
-optimizer = tf.train.AdamOptimizer(learning_rate=1e-2,beta1=0.9,beta2=0.999,\
+optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE,beta1=0.9,beta2=0.999,\
                                    epsilon=1e-08).minimize(loss)
 
 #grads_vars_non_transe = optimizer.compute_gradients(loss_nontranse)
@@ -307,7 +306,7 @@ conf = tf.ConfigProto()
 conf.gpu_options.allow_growth=True
 conf.log_device_placement=False #@myself: use this for debugging
 conf.allow_soft_placement=True
-P = Pool()
+P = Pool(3)
 with tf.Session(config = conf) as sess:
 
     # Run the initializer
@@ -327,11 +326,11 @@ with tf.Session(config = conf) as sess:
             temp_relations = dict.fromkeys([tuple(v) for v in relations])
             
         #prepare the data
-#        tame = time.time()        
+        tame = time.time()        
         posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch,batch_x=\
         SampleData(temp_relations,Nsamples_Transe,BATCH_SIZE,relations_dic_h,\
                    relations_dic_t,VOCABULARY_SIZE,Pos2NegRatio_Transe)
-#        print(time.time()-tame)
+        print(time.time()-tame)
 #        tame = time.time()        
         # Get the next batch of type labels
         batch_y = generate_labels(batch_x)                        

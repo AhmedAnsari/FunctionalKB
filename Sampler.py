@@ -126,37 +126,38 @@ def SampleData(relations,Nsamples,NBatchX,hDic,tDic,VOCABULARY_SIZE=14951\
     temp = random.sample(relations,int(Nsamples/PostoNegratio))
     ents = set()
     
+    def parallel(arg):
+        h = arg[0]
+        r = arg[1]
+        t = arg[2]        
+        if random.random()>0.5:
+            h_ = h
+            r_ = r
+            while True:
+                t_ = random.choice(range(VOCABULARY_SIZE))
+                if (r_,t_) not in hDic[h_]:
+                    break         
+        else:
+            t_ = t
+            r_ = r
+            while True:
+                h_ = random.choice(range(VOCABULARY_SIZE))
+                if (h_,r_) not in tDic[t_]:
+                    break
+        return h,r,t,h_,r_,t_
+    
     for h,r,t in temp:
         del relations[(h,r,t)]
         ents.update(set([h,t]))
-        for _ in range(PostoNegratio):
-            if random.random()>0.5:
-                h_ = h
-                r_ = r
-                while True:
-                    t_ = random.choice(range(VOCABULARY_SIZE))
-                    if (r_,t_) not in hDic[h_]:
-                        break         
-                pos_h.append(h)
-                pos_r.append(r)
-                pos_t.append(t)
-                neg_h.append(h_)
-                neg_r.append(r_)
-                neg_t.append(t_)
-            else:
-                t_ = t
-                r_ = r
-                while True:
-                    h_ = random.choice(range(VOCABULARY_SIZE))
-                    if (h_,r_) not in tDic[t_]:
-                        break
-                    
-                pos_h.append(h)
-                pos_r.append(r)
-                pos_t.append(t)
-                neg_h.append(h_)
-                neg_r.append(r_)
-                neg_t.append(t_)      
+        sample = map(parallel,PostoNegratio*[(h,r,t)])
+        _pos_h,_pos_r,_pos_t,_neg_h,_neg_r,_neg_t = zip(*sample)    
+        pos_h.extend(_pos_h)
+        pos_r.extend(_pos_r)
+        pos_t.extend(_pos_t)       
+        neg_h.extend(_neg_h)
+        neg_r.extend(_neg_r)
+        neg_t.extend(_neg_t)        
+        
                 
     ents = list(ents)
     X = random.sample(ents,NBatchX)
