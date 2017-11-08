@@ -92,7 +92,7 @@ with open('relations_dic_t.pkl','w') as fp:
     pkl.dump(relations_dic_t,fp)
     
 #only during evaluation    
-__relations = pd.read_table('test.txt',header=None)
+__relations = pd.read_table('valid.txt',header=None)
 _head = [e2id[ent] for ent in __relations[0].tolist()]
 _tail = [e2id[ent] for ent in __relations[1].tolist()]
 _relations = [r2id[rel] for rel in __relations[2].tolist()]
