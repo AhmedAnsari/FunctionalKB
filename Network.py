@@ -29,6 +29,7 @@ LEARNING_RATE = 1e-2
 BATCH_SIZE = 160 #@myself: need to set this
 RHO = 0.005 #Desired average activation value
 BETA = 0.5
+GAMMA = 0.001
 MARGIN = 1
 BATCH_EVAL = 32
 NUM_EPOCHS = 1000
@@ -271,17 +272,21 @@ loss_sparsity = tf.reduce_mean(tf.add(tf.multiply(Rho,tf.log(tf.div(Rho,RhoJ)))
 loss_regulariation = BETA*tf.reduce_mean(tf.stack(map(lambda x: 
                         tf.nn.l2_loss(x), weights.values()),axis=0))
     
+loss_embedding_regularization = GAMMA*tf.reduce_mean(tf.stack(map(lambda x: 
+                        tf.nn.l2_loss(x), [ent_embeddings,rel_embeddings]),axis=0))
+    
  #TransE loss
 pos = tf.reduce_sum((pos_h_e + pos_r_e - pos_t_e) ** 2, 1, keep_dims = True)
 neg = tf.reduce_sum((neg_h_e + neg_r_e - neg_t_e) ** 2, 1, keep_dims = True)		
 loss_transe = tf.reduce_sum(tf.maximum(pos - neg + MARGIN, 0))
     
 loss_nontranse = loss_autoenc + loss_classifier + loss_sparsity + \
-        loss_regulariation
+                    loss_regulariation + loss_embedding_regularization
 
 loss = loss_nontranse + loss_transe
 stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
-                        loss_regulariation, loss_transe],axis = 0)
+                        loss_regulariation, loss_embedding_regularization,\
+                        loss_transe],axis = 0)
                                 
 #optimizer = tf.train.RMSPropOptimizer(LEARNING_RATE).minimize(loss)
 optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE,beta1=0.9,beta2=0.999,\
