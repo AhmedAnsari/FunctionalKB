@@ -26,14 +26,14 @@ from numba import jit
 #  Training Parameters
 # =============================================================================
 LEARNING_RATE = 1e-2
-BATCH_SIZE = 32 #@myself: need to set this
+BATCH_SIZE = 160 #@myself: need to set this
 RHO = 0.005 #Desired average activation value
 BETA = 0.5
 MARGIN = 1
 BATCH_EVAL = 32
 NUM_EPOCHS = 1000
-Pos2NegRatio_Transe = 20
-Nsamples_Transe = 32*Pos2NegRatio_Transe
+Pos2NegRatio_Transe = 4
+Nsamples_Transe = 160*Pos2NegRatio_Transe
 # =============================================================================
 #  Network Parameters-1 #First let us solve only for Type loss
 # =============================================================================
@@ -210,8 +210,8 @@ def decoder(x):
 # =============================================================================
 def classify(x):
     #classification hidden layer with sigmoid activation
-    layer_1 = tf.nn.sigmoid(tf.add(tf.matmul(x, weights['classification_h']),
-                                   biases['classification_b']))
+    layer_1 = tf.add(tf.matmul(x, weights['classification_h']),
+                                   biases['classification_b'])
     return layer_1
 
 # =============================================================================
