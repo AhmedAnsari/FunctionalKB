@@ -132,7 +132,7 @@ eval_to_rank_e = tf.nn.embedding_lookup(ent_embeddings, eval_to_rank)
 normalize_entity_op = ent_embeddings.assign(tf.clip_by_norm(ent_embeddings, \
                                                     clip_norm=1, axes=1))
 
-normalize_rel_op = ent_embeddings.assign(tf.clip_by_norm(rel_embeddings, \
+normalize_rel_op = rel_embeddings.assign(tf.clip_by_norm(rel_embeddings, \
                                                     clip_norm=1, axes=1))
 
 with tf.device(DEVICE):
