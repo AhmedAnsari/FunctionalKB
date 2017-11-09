@@ -12,9 +12,7 @@ import tensorflow as tf
 import os
 import numpy as np
 import json
-from Sampler import SampleTransEData,SampleData
-import itertools
-import random
+from Sampler import SampleData, SampleTypeWise
 import datetime
 import cPickle as pkl
 from Evaluation import Evaluate_MR
@@ -26,7 +24,8 @@ from numba import jit
 #  Training Parameters
 # =============================================================================
 LEARNING_RATE = 1e-2
-BATCH_SIZE = 160 #@myself: need to set this
+BATCH_SIZE = 16 #@myself: need to set this
+NUM_TYPES_BATCH = BATCH_SIZE 
 RHO = 0.005 #Desired average activation value
 BETA = 0.5
 GAMMA = 0.001
@@ -34,7 +33,7 @@ MARGIN = 1
 BATCH_EVAL = 32
 NUM_EPOCHS = 1000
 Pos2NegRatio_Transe = 4
-Nsamples_Transe = 160*Pos2NegRatio_Transe
+Nsamples_Transe = 16*Pos2NegRatio_Transe
 # =============================================================================
 #  Network Parameters-1 #First let us solve only for Type loss
 # =============================================================================
@@ -48,7 +47,7 @@ DEVICE = '/cpu:0'
 # =============================================================================
 #  Import data regarding embedding relations and type information
 # =============================================================================
-types = json.load(open('types_fb.json'))
+Type2Data = pkl.load(open('Type2Data.pkl'))
 ent2type = pkl.load(open('ent2type.pkl'))
 relations_dic_h = pkl.load(open('relations_dic_h.pkl'))
 relations_dic_t = pkl.load(open('relations_dic_t.pkl'))
@@ -60,7 +59,7 @@ evalsubset_relations = evalsubset_relations\
      len(evalsubset_relations) % BATCH_EVAL]
 relations = json.load(open('relations_hrt.json'))
 TOT_RELATIONS = len(json.load(open('relations_hrt.json')))
-NUM_TYPES = len(types)
+NUM_TYPES = len(Type2Data)
 
 @jit
 def generate_labels(batch):
@@ -322,25 +321,27 @@ with tf.Session(config = conf) as sess:
     epoch=1
     step=1    
     temp_relations = dict.fromkeys([tuple(v) for v in relations])
-
+    temp_Type2Data = deepcopy(Type2Data)
     while (epoch < NUM_EPOCHS):
         if len(temp_relations) < 0.1 * TOT_RELATIONS:
             epoch += 1
             step=1
             NOW_DISPLAY = True
             temp_relations = dict.fromkeys([tuple(v) for v in relations])
+            temp_Type2Data = deepcopy(Type2Data)            
             
         #prepare the data
-        tame = time.time()        
+#        tame = time.time()
         posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch,batch_x=\
-        SampleData(temp_relations,Nsamples_Transe,BATCH_SIZE,relations_dic_h,\
-                   relations_dic_t,VOCABULARY_SIZE,Pos2NegRatio_Transe)
-        print(time.time()-tame)
-#        tame = time.time()        
+        SampleTypeWise(temp_Type2Data,ent2type,Nsamples_Transe,BATCH_SIZE,\
+                       relations_dic_h,relations_dic_t,VOCABULARY_SIZE,\
+                       Pos2NegRatio_Transe,NUM_TYPES_BATCH,NUM_TYPES,1)
+#        print (time.time()-tame)
+#        posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch,batch_x=\
+#        SampleData(temp_relations,Nsamples_Transe,BATCH_SIZE,relations_dic_h,\
+#                   relations_dic_t,VOCABULARY_SIZE,Pos2NegRatio_Transe)
         # Get the next batch of type labels
         batch_y = generate_labels(batch_x)                        
-#        print(time.time()-tame)   
-#        tame = time.time()        
         # Run optimization op (backprop) and cost op (to get loss value)
         _, l_array = sess.run([optimizer, stacked_loss], feed_dict=\
                         {
@@ -369,7 +370,7 @@ with tf.Session(config = conf) as sess:
                 fp.write('Epoch %i : Loss Array: %s\n\n'% \
                                          (epoch,','.join(l_array)))
                 
-        if (NOW_DISPLAY or step==1) and epoch%5==1:
+        if (NOW_DISPLAY) and epoch%5==1:
             # Evaluation on Training Data
             MRT = []
             MRH = []

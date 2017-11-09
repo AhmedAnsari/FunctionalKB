@@ -77,6 +77,18 @@ with open('ent2type.pkl','w') as fp:
 #save the set of relations in the form (h,r,t) tuples    
 with open('relations_hrt.json','w') as fp:
     fp.write(json.dumps(relations,fp))
+
+
+#make a dictionary with keys as types and values as sets of relations
+Type2Data = defaultdict(set)
+for h,r,t in relations:
+    for _t in list(ent2type[h]):
+        Type2Data[_t].add((h,r,t))
+    for _t in list(ent2type[t]):
+        Type2Data[_t].add((h,r,t))      
+
+with open('Type2Data.pkl','w') as fp:
+    pkl.dump(Type2Data,fp)
     
 #make a dictionary of relations
 relations_dic_h = defaultdict(set)
@@ -101,7 +113,7 @@ relations_test = zip(_head,_relations,_tail) #list of tuples of form (h,r,t)
 with open('evalsubset_relations_train.pkl','w') as fp:
     pkl.dump(relations_test,fp)
     
-    
+
     
     
     
