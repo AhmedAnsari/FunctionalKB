@@ -288,8 +288,8 @@ stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
                         loss_transe],axis = 0)
                                 
 #optimizer = tf.train.RMSPropOptimizer(LEARNING_RATE).minimize(loss)
-optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE,beta1=0.9,beta2=0.999,\
-                                   epsilon=1e-08).minimize(loss)
+optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE,beta1=0.9,\
+                                   beta2=0.999,epsilon=1e-08).minimize(loss)
 
 #grads_vars_non_transe = optimizer.compute_gradients(loss_nontranse)
 #grads_vars_transe = optimizer.compute_gradients(loss_transe)

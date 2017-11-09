@@ -73,9 +73,9 @@ def SampleTypeWise(Type2Data,Ent2Type,Nsamples,NBatchX,hDic,tDic,\
     #firts sample the types that are there in this batch
     Cur_Types = random.sample(range(NUM_TYPES),NUM_TYPES_BATCH)
     #get data corresponding to Cur_Types
-    relations = set()
-    [relations.update(Type2Data[_type]) for _type in Cur_Types]
-    relations = list(relations)
+    relations = []
+    [relations.extend(list(Type2Data[_type])) for _type in Cur_Types]
+#    relations = list(relations)
     #now sampe reqd no. of relations from this set    
     temp = random.sample(relations,int(Nsamples/PostoNegratio))
     ents = set()
