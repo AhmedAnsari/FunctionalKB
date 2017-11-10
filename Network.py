@@ -24,7 +24,7 @@ from numba import jit
 #  Training Parameters
 # =============================================================================
 LEARNING_RATE = 1e-2
-BATCH_SIZE = 16 #@myself: need to set this
+BATCH_SIZE = 160 #@myself: need to set this
 NUM_TYPES_BATCH = BATCH_SIZE 
 RHO = 0.005 #Desired average activation value
 BETA = 0.5
@@ -33,7 +33,7 @@ MARGIN = 1
 BATCH_EVAL = 32
 NUM_EPOCHS = 1000
 Pos2NegRatio_Transe = 4
-Nsamples_Transe = 16*Pos2NegRatio_Transe
+Nsamples_Transe = 160*Pos2NegRatio_Transe
 # =============================================================================
 #  Network Parameters-1 #First let us solve only for Type loss
 # =============================================================================
@@ -66,7 +66,7 @@ def generate_labels(batch):
     out = []
     for x in batch:
         out.append(NUM_TYPES*[0])
-        for i in range(NUM_TYPES):
+        for i in xrange(NUM_TYPES):
             if x in ent2type[i]:
                 out[-1][i]=1                    
     return out
@@ -320,16 +320,16 @@ with tf.Session(config = conf) as sess:
     NOW_DISPLAY = False
     epoch=1
     step=1    
-    temp_relations = dict.fromkeys([tuple(v) for v in relations])
+#    temp_relations = dict.fromkeys([tuple(v) for v in relations])
     temp_Type2Data = deepcopy(Type2Data)
     while (epoch < NUM_EPOCHS):
-        if len(temp_relations) < 0.1 * TOT_RELATIONS:
+        if sum(map(len,temp_Type2Data.values())) < 0.1 * TOT_RELATIONS:
             epoch += 1
             step=1
             NOW_DISPLAY = True
-            temp_relations = dict.fromkeys([tuple(v) for v in relations])
+#            temp_relations = dict.fromkeys([tuple(v) for v in relations])
             temp_Type2Data = deepcopy(Type2Data)            
-            
+#        print(sum(map(len,temp_Type2Data.values())))
         #prepare the data
 #        tame = time.time()
         posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch,batch_x=\
@@ -375,7 +375,7 @@ with tf.Session(config = conf) as sess:
             MRT = []
             MRH = []
             skip_rate = int(evalsubset_relations.shape[0]/BATCH_EVAL)
-            for j in range(0, skip_rate):
+            for j in xrange(0, skip_rate):
                 eval_batch_h = evalsubset_relations[j::skip_rate,0]
                 eval_batch_r = evalsubset_relations[j::skip_rate,1] 
                 eval_batch_t = evalsubset_relations[j::skip_rate,2] 
@@ -387,7 +387,7 @@ with tf.Session(config = conf) as sess:
                                     eval_h:eval_batch_h,                                
                                     eval_r:eval_batch_r,                                
                                     eval_t:eval_batch_t,
-                                    eval_to_rank:range(VOCABULARY_SIZE) 
+                                    eval_to_rank:xrange(VOCABULARY_SIZE) 
                                  })
                 mrt, mrh = map(Evaluate_MR,*[(eval_batch_t.tolist(),\
                               eval_batch_h.tolist()), (indexes_t.tolist(),\

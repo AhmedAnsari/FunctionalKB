@@ -31,14 +31,14 @@ def SampleData(relations,Nsamples,NBatchX,hDic,tDic,VOCABULARY_SIZE=14951\
             h_ = h
             r_ = r
             while True:
-                t_ = random.choice(range(VOCABULARY_SIZE))
+                t_ = random.choice(xrange(VOCABULARY_SIZE))
                 if (r_,t_) not in hDic[h_]:
                     break         
         else:
             t_ = t
             r_ = r
             while True:
-                h_ = random.choice(range(VOCABULARY_SIZE))
+                h_ = random.choice(xrange(VOCABULARY_SIZE))
                 if (h_,r_) not in tDic[t_]:
                     break
         return h,r,t,h_,r_,t_
@@ -71,7 +71,7 @@ def SampleTypeWise(Type2Data,Ent2Type,Nsamples,NBatchX,hDic,tDic,\
     neg_r = []
     neg_t = []
     #firts sample the types that are there in this batch
-    Cur_Types = random.sample(range(NUM_TYPES),NUM_TYPES_BATCH)
+    Cur_Types = random.sample(xrange(NUM_TYPES),NUM_TYPES_BATCH)
     #get data corresponding to Cur_Types
     relations = []
     [relations.extend(list(Type2Data[_type])) for _type in Cur_Types]
@@ -88,14 +88,14 @@ def SampleTypeWise(Type2Data,Ent2Type,Nsamples,NBatchX,hDic,tDic,\
             h_ = h
             r_ = r
             while True:
-                t_ = random.choice(range(VOCABULARY_SIZE))
+                t_ = random.choice(xrange(VOCABULARY_SIZE))
                 if (r_,t_) not in hDic[h_]:
                     break         
         else:
             t_ = t
             r_ = r
             while True:
-                h_ = random.choice(range(VOCABULARY_SIZE))
+                h_ = random.choice(xrange(VOCABULARY_SIZE))
                 if (h_,r_) not in tDic[t_]:
                     break
         return h,r,t,h_,r_,t_

@@ -27,5 +27,5 @@ def Evaluate_MR(gold_list, indices, P):
         _index = list2.index(arg[0])
         return _index+1
     
-    MR.extend(P.map(get_rank, zip(gold_list, range(len(gold_list)))))
+    MR.extend(P.map(get_rank, zip(gold_list, xrange(len(gold_list)))))
     return MR
