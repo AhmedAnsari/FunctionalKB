@@ -8,6 +8,7 @@ Created on Wed Oct 18 11:10:55 2017
 """
 
 import random
+from operator import itemgetter
 # =============================================================================
 #  Sampler Function to generate samples for TransE Minibatch
 # =============================================================================
@@ -74,7 +75,8 @@ def SampleTypeWise(Type2Data,Ent2Type,Nsamples,NBatchX,hDic,tDic,\
     Cur_Types = random.sample(xrange(NUM_TYPES),NUM_TYPES_BATCH)
     #get data corresponding to Cur_Types
     relations = []
-    [relations.extend(list(Type2Data[_type])) for _type in Cur_Types]
+    [relations.extend(list(x)) for x in itemgetter(*Cur_Types)(Type2Data)]
+#    [relations.extend(list(Type2Data[_type])) for _type in Cur_Types]
 #    relations = list(relations)
     #now sampe reqd no. of relations from this set    
     temp = random.sample(relations,int(Nsamples/PostoNegratio))
