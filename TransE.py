@@ -129,11 +129,10 @@ eval_t_e = tf.nn.embedding_lookup(ent_embeddings, eval_t)
 eval_r_e = tf.nn.embedding_lookup(rel_embeddings, eval_r)
 eval_to_rank_e = tf.nn.embedding_lookup(ent_embeddings, eval_to_rank)
 
-normalize_entity_op = ent_embeddings.assign(tf.clip_by_norm(ent_embeddings, \
-                                                    clip_norm=1, axes=1))
+normalize_entity_op = tf.assign(ent_embeddings,tf.nn.l2_normalize(ent_embeddings,dim=1))
+                                                    
 
-normalize_rel_op = rel_embeddings.assign(tf.clip_by_norm(rel_embeddings, \
-                                                    clip_norm=1, axes=1))
+normalize_rel_op = tf.assign(rel_embeddings,tf.nn.l2_normalize(rel_embeddings,dim=1))
 
 with tf.device(DEVICE):
     
@@ -311,12 +310,11 @@ conf = tf.ConfigProto()
 conf.gpu_options.allow_growth=True
 conf.log_device_placement=False #@myself: use this for debugging
 conf.allow_soft_placement=True
-P = Pool(3)
+P = Pool()
 with tf.Session(config = conf) as sess:
 
     # Run the initializer
     sess.run(init)
-    
     sess.run(normalize_rel_op)
     # Training
     NOW_DISPLAY = False
@@ -343,8 +341,10 @@ with tf.Session(config = conf) as sess:
 #        SampleData(temp_relations,Nsamples_Transe,BATCH_SIZE,relations_dic_h,\
 #                   relations_dic_t,VOCABULARY_SIZE,Pos2NegRatio_Transe)
         # Get the next batch of type labels
-        batch_y = generate_labels(batch_x)        
+        batch_y = generate_labels(batch_x)  
+
         sess.run(normalize_entity_op)                
+#        print('before:'+str(sess.run(tf.norm(ent_embeddings,axis=1))))        
         # Run optimization op (backprop) and cost op (to get loss value)
         _, l_array = sess.run([optimizer, stacked_loss], feed_dict=\
                         {
@@ -358,6 +358,7 @@ with tf.Session(config = conf) as sess:
                             neg_t:negt_batch,                                    
                         })
 #        print(time.time()-tame)           
+#        print('after:'+str(sess.run(tf.norm(ent_embeddings,axis=1)))+'\n')
         l = np.sum(l_array)     
         # Display logs per step
         if NOW_DISPLAY or step==1:
