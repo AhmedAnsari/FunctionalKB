@@ -12,7 +12,7 @@ import tensorflow as tf
 import os
 import numpy as np
 import json
-from Sampler import SampleData, SampleTypeWise
+from Sampler import SampleTypeWise
 import datetime
 import cPickle as pkl
 from Evaluation import Evaluate_MR
@@ -23,7 +23,7 @@ from numba import jit
 # =============================================================================
 #  Training Parameters
 # =============================================================================
-LEARNING_RATE = 1e-2
+LEARNING_RATE = 1e-4
 BATCH_SIZE = 160 #@myself: need to set this
 NUM_TYPES_BATCH = BATCH_SIZE 
 RHO = 0.005 #Desired average activation value
@@ -42,7 +42,7 @@ NUM_HIDDEN_2 = 256 # 2nd layer num features (the latent dim)
 NUM_INPUT = EMBEDDING_SIZE = 64 #@myself: need to set this
 VOCABULARY_SIZE = 14951
 RELATIONS_SIZE = 1345
-LOG_DIR = 'Logs/'+str(datetime.datetime.now())
+LOG_DIR = 'Logs/'+datetime.datetime.now().strftime("%B %d, %Y, %I:%M%p")
 DEVICE = '/cpu:0'
 # =============================================================================
 #  Import data regarding embedding relations and type information
@@ -77,14 +77,14 @@ def generate_labels(batch):
 with tf.device(DEVICE):
     ent_embeddings = tf.get_variable(name='W_Ent',shape = [VOCABULARY_SIZE,\
                        EMBEDDING_SIZE],initializer = \
-                        tf.contrib.layers.xavier_initializer(uniform = False))
+                        tf.contrib.layers.xavier_initializer(uniform = True))
     
     
                                                
     #Define the relation embedding matrix to be uniform in a unit cube
     rel_embeddings = tf.get_variable(name='W_Rel',shape = [RELATIONS_SIZE,\
                        EMBEDDING_SIZE],initializer = \
-                        tf.contrib.layers.xavier_initializer(uniform = False))
+                        tf.contrib.layers.xavier_initializer(uniform = True))
 
 
 
@@ -129,10 +129,12 @@ eval_t_e = tf.nn.embedding_lookup(ent_embeddings, eval_t)
 eval_r_e = tf.nn.embedding_lookup(rel_embeddings, eval_r)
 eval_to_rank_e = tf.nn.embedding_lookup(ent_embeddings, eval_to_rank)
 
-normalize_entity_op = ent_embeddings.assign(tf.clip_by_norm(ent_embeddings, \
-                                                    clip_norm=1, axes=1))
+normalize_entity_op = tf.assign(ent_embeddings,tf.nn.l2_normalize\
+                                            (ent_embeddings,dim=1))
+                                                    
 
-
+normalize_rel_op = tf.assign(rel_embeddings,tf.nn.l2_normalize\
+                                             (rel_embeddings,dim=1))
 
 with tf.device(DEVICE):
     
@@ -140,39 +142,39 @@ with tf.device(DEVICE):
             
         'encoder_h1': tf.get_variable(name='W_encoder_h1',shape = \
                       [NUM_INPUT, NUM_HIDDEN_1],initializer = \
-                        tf.contrib.layers.xavier_initializer(uniform = False)),
+                        tf.contrib.layers.xavier_initializer(uniform = True)),
     
         'encoder_h2': tf.get_variable(name='W_encoder_h2',shape = \
                       [NUM_HIDDEN_1, NUM_HIDDEN_2],initializer = \
-                        tf.contrib.layers.xavier_initializer(uniform = False)),      
+                        tf.contrib.layers.xavier_initializer(uniform = True)),      
                                                                    
         'decoder_h1': tf.get_variable(name='W_decoder_h1',shape = \
                       [NUM_HIDDEN_2, NUM_HIDDEN_1],initializer = \
-                        tf.contrib.layers.xavier_initializer(uniform = False)),      
+                        tf.contrib.layers.xavier_initializer(uniform = True)),      
         'decoder_h2': tf.get_variable(name='W_decoder_h2',shape = \
                       [NUM_HIDDEN_1, NUM_INPUT],initializer = \
-                        tf.contrib.layers.xavier_initializer(uniform = False)),      
+                        tf.contrib.layers.xavier_initializer(uniform = True)),      
         'classification_h': tf.get_variable(name='W_classification_h',shape = \
                         [NUM_HIDDEN_2, NUM_TYPES],initializer = \
-                        tf.contrib.layers.xavier_initializer(uniform = False)),
+                        tf.contrib.layers.xavier_initializer(uniform = True)),
     }
     
     biases = {
         'encoder_b1': tf.get_variable(name='W_encoder_b1',shape = \
                       [NUM_HIDDEN_1],initializer = \
-                        tf.contrib.layers.xavier_initializer(uniform = False)),
+                        tf.contrib.layers.xavier_initializer(uniform = True)),
         'encoder_b2': tf.get_variable(name='W_encoder_b2',shape = \
                       [NUM_HIDDEN_2],initializer = \
-                        tf.contrib.layers.xavier_initializer(uniform = False)),
+                        tf.contrib.layers.xavier_initializer(uniform = True)),
         'decoder_b1': tf.get_variable(name='W_decoder_b1',shape = \
                        [NUM_HIDDEN_1],initializer = \
-                        tf.contrib.layers.xavier_initializer(uniform = False)),      
+                        tf.contrib.layers.xavier_initializer(uniform = True)),      
         'decoder_b2': tf.get_variable(name='W_decoder_b2',shape = \
                       [NUM_INPUT],initializer = \
-                        tf.contrib.layers.xavier_initializer(uniform = False)),      
+                        tf.contrib.layers.xavier_initializer(uniform = True)),      
         'classification_b': tf.get_variable(name='W_classification_b',shape = \
                         [NUM_TYPES],initializer = \
-                        tf.contrib.layers.xavier_initializer(uniform = False)),
+                        tf.contrib.layers.xavier_initializer(uniform = True)),
     }
 
 # =============================================================================
@@ -254,11 +256,11 @@ labels = Y
 #  Define loss and optimizer, minimize the squared error
 # =============================================================================
  #For autoencoder part
-loss_autoenc = tf.reduce_mean(tf.pow(y_true - y_pred, 2))
+loss_autoenc = tf.reduce_sum(tf.reduce_mean(tf.pow(y_true - y_pred, 2),axis=1))
 
  #For classification part
-loss_classifier =  tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
-        labels=labels,logits=logits))
+loss_classifier =  tf.reduce_sum(tf.reduce_mean((tf.nn.sigmoid_cross_entropy_with_logits(
+        labels=labels,logits=logits)),axis=1))
  #sparsity loss
 RhoJ = tf.clip_by_value(tf.concat([RhoJEH1, RhoJEH2, RhoJDH1, RhoJDH2],
                                   axis = 0),1e-10,1-1e-10)
@@ -268,11 +270,9 @@ loss_sparsity = tf.reduce_mean(tf.add(tf.multiply(Rho,tf.log(tf.div(Rho,RhoJ)))
 ,tf.multiply((1-Rho),tf.log(tf.div((1-Rho),(1-RhoJ))))))
  
  #regularization cost
-loss_regulariation = BETA*tf.reduce_mean(tf.stack(map(lambda x: 
+loss_regulariation = tf.reduce_sum(tf.stack(map(lambda x: 
                         tf.nn.l2_loss(x), weights.values()),axis=0))
     
-loss_embedding_regularization = GAMMA*tf.reduce_mean(tf.stack(map(lambda x: 
-                        tf.nn.l2_loss(x), [ent_embeddings,rel_embeddings]),axis=0))
     
  #TransE loss
 pos = tf.reduce_sum((pos_h_e + pos_r_e - pos_t_e) ** 2, 1, keep_dims = True)
@@ -280,21 +280,15 @@ neg = tf.reduce_sum((neg_h_e + neg_r_e - neg_t_e) ** 2, 1, keep_dims = True)
 loss_transe = tf.reduce_sum(tf.maximum(pos - neg + MARGIN, 0))
     
 loss_nontranse = loss_autoenc + loss_classifier + loss_sparsity + \
-                    loss_regulariation + loss_embedding_regularization
+                    BETA*loss_regulariation 
 
-loss = loss_nontranse + loss_transe
+loss = loss_transe + loss_nontranse
 stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
-                        loss_regulariation, loss_embedding_regularization,\
-                        loss_transe],axis = 0)
+                        loss_regulariation,loss_transe],axis = 0)
                                 
 #optimizer = tf.train.RMSPropOptimizer(LEARNING_RATE).minimize(loss)
 optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE,beta1=0.9,\
                                    beta2=0.999,epsilon=1e-08).minimize(loss)
-
-#grads_vars_non_transe = optimizer.compute_gradients(loss_nontranse)
-#grads_vars_transe = optimizer.compute_gradients(loss_transe)
-#train_op_non_transe = optimizer.apply_gradients(grads_vars_non_transe)
-#train_op_transe = optimizer.apply_gradients(grads_vars_transe)
 
 saver = tf.train.Saver()
 # =============================================================================
@@ -310,51 +304,47 @@ conf = tf.ConfigProto()
 conf.gpu_options.allow_growth=True
 conf.log_device_placement=False #@myself: use this for debugging
 conf.allow_soft_placement=True
-P = Pool(3)
+P = Pool()
 with tf.Session(config = conf) as sess:
 
     # Run the initializer
     sess.run(init)
-
+    sess.run(normalize_rel_op)
     # Training
     NOW_DISPLAY = False
     epoch=1
     step=1    
-#    temp_relations = dict.fromkeys([tuple(v) for v in relations])
     temp_Type2Data = deepcopy(Type2Data)
     while (epoch < NUM_EPOCHS):
         if sum(map(len,temp_Type2Data.values())) < 0.1 * TOT_RELATIONS:
             epoch += 1
             step=1
             NOW_DISPLAY = True
-#            temp_relations = dict.fromkeys([tuple(v) for v in relations])
             temp_Type2Data = deepcopy(Type2Data)            
-#        print(sum(map(len,temp_Type2Data.values())))
+            
         #prepare the data
-#        tame = time.time()
-        posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch,batch_x=\
+        h_batch,r_batch,t_batch,negh_batch,negr_batch,negt_batch,batch_x=\
         SampleTypeWise(temp_Type2Data,ent2type,Nsamples_Transe,BATCH_SIZE,\
                        relations_dic_h,relations_dic_t,VOCABULARY_SIZE,\
                        Pos2NegRatio_Transe,NUM_TYPES_BATCH,NUM_TYPES,1)
-#        print (time.time()-tame)
-#        posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch,batch_x=\
-#        SampleData(temp_relations,Nsamples_Transe,BATCH_SIZE,relations_dic_h,\
-#                   relations_dic_t,VOCABULARY_SIZE,Pos2NegRatio_Transe)
+
         # Get the next batch of type labels
-        batch_y = generate_labels(batch_x)                        
+        batch_y = generate_labels(batch_x)  
+
+        sess.run(normalize_entity_op)                
+
         # Run optimization op (backprop) and cost op (to get loss value)
         _, l_array = sess.run([optimizer, stacked_loss], feed_dict=\
                         {
                             X: batch_x,
                             Y: batch_y,
-                            pos_h:posh_batch,
-                            pos_r:posr_batch,
-                            pos_t:post_batch,                        
+                            pos_h:h_batch,
+                            pos_r:r_batch,
+                            pos_t:t_batch,                        
                             neg_h:negh_batch,
                             neg_r:negr_batch,
                             neg_t:negt_batch,                                    
                         })
-#        print(time.time()-tame)           
         l = np.sum(l_array)     
         # Display logs per step
         if NOW_DISPLAY or step==1:
