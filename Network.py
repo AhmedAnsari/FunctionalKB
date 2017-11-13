@@ -298,6 +298,7 @@ loss_transe = tf.reduce_sum(tf.maximum(pos - neg + MARGIN, 0))
 loss_nontranse = loss_autoenc + loss_classifier + loss_sparsity + \
                     BETA*loss_regulariation 
 
+
 loss = loss_transe + loss_nontranse
 stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
                         loss_regulariation,loss_transe],axis = 0)
@@ -331,6 +332,8 @@ with tf.Session(config = conf) as sess:
     epoch=1
     step=1    
     temp_Type2Data = deepcopy(Type2Data)
+    mean_losses = np.zeros([5])
+    mean_delta = 0
     while (epoch < NUM_EPOCHS):
         if sum(map(len,temp_Type2Data.values())) < 0.1 * TOT_RELATIONS:
             epoch += 1
@@ -362,28 +365,32 @@ with tf.Session(config = conf) as sess:
                             neg_r:negr_batch,
                             neg_t:negt_batch,                                    
                         })
-        l = np.sum(l_array)     
+        l = np.sum(l_array)  
+        mean_losses+=np.array(l_array)
+        mean_delta+=delta_cl
         # Display logs per step
         if NOW_DISPLAY or step==1:
+            mean_losses/=float(step)
+            mean_delta/=float(step)
             print('Epoch %i : Minibatch Loss: %f\n' % (epoch, l))
-            l_array = [str(token) for token in l_array]
-            print('Epoch %i : Loss Array: %s\n' % (epoch,','.join(l_array)))
+            l_array = [str(token) for token in mean_losses]
+            print('Epoch %i : Mean Loss Array: %s\n' % (epoch,','.join(l_array)))
             print('Epoch %i : Margin Classification: %f\n'% \
                                      (epoch,margin_cl))         
-            print('Epoch %i : Delta Classification: %f\n\n'% \
-                                     (epoch,delta_cl))
+            print('Epoch %i : Mean Delta Classification: %f\n\n'% \
+                                     (epoch,mean_delta))
             if not os.path.exists(LOG_DIR):
                 os.makedirs(LOG_DIR)
             saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"), step)
             with open(LOG_DIR+'/loss.txt','a+') as fp:
                 fp.write('Epoch %i : Minibatch Loss: %f\n' % \
                                                      (epoch, l))
-                fp.write('Epoch %i : Loss Array: %s\n'% \
+                fp.write('Epoch %i : Mean Loss Array: %s\n'% \
                                          (epoch,','.join(l_array)))
                 fp.write('Epoch %i : Margin Classification: %f\n'% \
                                          (epoch,margin_cl))
-                fp.write('Epoch %i : Delta Classification: %f\n\n'% \
-                                         (epoch,delta_cl))              
+                fp.write('Epoch %i : Mean Delta Classification: %f\n\n'% \
+                                         (epoch,mean_delta))              
                 
                 
         if (NOW_DISPLAY) and epoch%5==1:
