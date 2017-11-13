@@ -42,7 +42,7 @@ NUM_HIDDEN_2 = 256 # 2nd layer num features (the latent dim)
 NUM_INPUT = EMBEDDING_SIZE = 64 #@myself: need to set this
 VOCABULARY_SIZE = 14951
 RELATIONS_SIZE = 1345
-LOG_DIR = 'Logs/'+datetime.datetime.now().strftime("%B %d, %Y, %I:%M%p")
+LOG_DIR = 'Logs/'+datetime.datetime.now().strftime("%B %d, %Y, %I.%M%p")
 DEVICE = '/cpu:0'
 # =============================================================================
 #  Import data regarding embedding relations and type information
@@ -110,6 +110,8 @@ with tf.device(DEVICE):
     eval_r = tf.placeholder(tf.int32, [None])
     eval_to_rank = tf.placeholder(tf.int32, [None])    
     
+
+    
     
 
 #look up the vector for each of the source words in the batch for Jtype part
@@ -135,6 +137,8 @@ normalize_entity_op = tf.assign(ent_embeddings,tf.nn.l2_normalize\
 
 normalize_rel_op = tf.assign(rel_embeddings,tf.nn.l2_normalize\
                                              (rel_embeddings,dim=1))
+
+
 
 with tf.device(DEVICE):
     
@@ -227,6 +231,8 @@ def predict_rank(x, y, z, batch_size_eval, z_eval_dataset_size, K):
     #now find the top_k members from this set
     values_indices = tf.nn.top_k(out,k=K)
     return values_indices
+
+
 # =============================================================================
 #  Construct model
 # =============================================================================
@@ -235,11 +241,18 @@ encoder_op, RhoJEH1, RhoJEH2 = encoder(embed)
 decoder_op, RhoJDH1, RhoJDH2 = decoder(encoder_op)
 classifier_op = classify(encoder_op)
 
-#evaluation part of network
+
+#evaluation part of TransE
 _t, indices_t = predict_rank(eval_h_e, eval_r_e, eval_to_rank_e, \
                     BATCH_EVAL, VOCABULARY_SIZE, VOCABULARY_SIZE)
 _h, indices_h = predict_rank(eval_t_e, -1*eval_r_e, eval_to_rank_e, \
                     BATCH_EVAL, VOCABULARY_SIZE, VOCABULARY_SIZE)
+
+#evaluation part of Classification
+score_classification = tf.nn.sigmoid(classifier_op)
+marker_classification = 2*(Y-0.5)
+margin_classification = tf.reduce_sum(tf.multiply( score_classification, \
+                                marker_classification))
 # =============================================================================
 #  Prediction
 # =============================================================================
@@ -268,7 +281,7 @@ Rho = tf.constant(RHO) #Desired average activation value
 
 loss_sparsity = tf.reduce_mean(tf.add(tf.multiply(Rho,tf.log(tf.div(Rho,RhoJ)))
 ,tf.multiply((1-Rho),tf.log(tf.div((1-Rho),(1-RhoJ))))))
- 
+
  #regularization cost
 loss_regulariation = tf.reduce_sum(tf.stack(map(lambda x: 
                         tf.nn.l2_loss(x), weights.values()),axis=0))
@@ -334,7 +347,7 @@ with tf.Session(config = conf) as sess:
         sess.run(normalize_entity_op)                
 
         # Run optimization op (backprop) and cost op (to get loss value)
-        _, l_array = sess.run([optimizer, stacked_loss], feed_dict=\
+        _, l_array,margin_cl = sess.run([optimizer, stacked_loss,margin_classification], feed_dict=\
                         {
                             X: batch_x,
                             Y: batch_y,
@@ -351,14 +364,19 @@ with tf.Session(config = conf) as sess:
             print('Epoch %i : Minibatch Loss: %f\n' % (epoch, l))
             l_array = [str(token) for token in l_array]
             print('Epoch %i : Loss Array: %s\n' % (epoch,','.join(l_array)))
+            print('Epoch %i : Margin Classification: %f\n\n'% \
+                                     (epoch,margin_cl))            
             if not os.path.exists(LOG_DIR):
                 os.makedirs(LOG_DIR)
             saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"), step)
             with open(LOG_DIR+'/loss.txt','a+') as fp:
                 fp.write('Epoch %i : Minibatch Loss: %f\n' % \
                                                      (epoch, l))
-                fp.write('Epoch %i : Loss Array: %s\n\n'% \
+                fp.write('Epoch %i : Loss Array: %s\n'% \
                                          (epoch,','.join(l_array)))
+                fp.write('Epoch %i : Margin Classification: %f\n\n'% \
+                                         (epoch,margin_cl))
+                
                 
         if (NOW_DISPLAY) and epoch%5==1:
             # Evaluation on Training Data
