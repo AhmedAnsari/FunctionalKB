@@ -23,7 +23,7 @@ from numba import jit
 # =============================================================================
 #  Training Parameters
 # =============================================================================
-LEARNING_RATE = 1e-2
+LEARNING_RATE = 1e-4
 BATCH_SIZE = 160 #@myself: need to set this
 NUM_TYPES_BATCH = BATCH_SIZE 
 RHO = 0.005 #Desired average activation value
