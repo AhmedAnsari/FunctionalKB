@@ -253,6 +253,9 @@ score_classification = tf.nn.sigmoid(classifier_op)
 marker_classification = 2*(Y-0.5)
 margin_classification = tf.reduce_sum(tf.multiply( score_classification, \
                                 marker_classification))
+min_pos_score_classification = tf.reduce_min(score_classification+1-Y)
+max_neg_score_classification = tf.reduce_max(score_classification-Y)
+delta_classification = min_pos_score_classification - max_neg_score_classification
 # =============================================================================
 #  Prediction
 # =============================================================================
@@ -347,7 +350,8 @@ with tf.Session(config = conf) as sess:
         sess.run(normalize_entity_op)                
 
         # Run optimization op (backprop) and cost op (to get loss value)
-        _, l_array,margin_cl = sess.run([optimizer, stacked_loss,margin_classification], feed_dict=\
+        _, l_array,margin_cl,delta_cl = sess.run([optimizer, stacked_loss,
+                    margin_classification,delta_classification], feed_dict=\
                         {
                             X: batch_x,
                             Y: batch_y,
@@ -364,8 +368,10 @@ with tf.Session(config = conf) as sess:
             print('Epoch %i : Minibatch Loss: %f\n' % (epoch, l))
             l_array = [str(token) for token in l_array]
             print('Epoch %i : Loss Array: %s\n' % (epoch,','.join(l_array)))
-            print('Epoch %i : Margin Classification: %f\n\n'% \
-                                     (epoch,margin_cl))            
+            print('Epoch %i : Margin Classification: %f\n'% \
+                                     (epoch,margin_cl))         
+            print('Epoch %i : Delta Classification: %f\n\n'% \
+                                     (epoch,delta_cl))
             if not os.path.exists(LOG_DIR):
                 os.makedirs(LOG_DIR)
             saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"), step)
@@ -374,8 +380,10 @@ with tf.Session(config = conf) as sess:
                                                      (epoch, l))
                 fp.write('Epoch %i : Loss Array: %s\n'% \
                                          (epoch,','.join(l_array)))
-                fp.write('Epoch %i : Margin Classification: %f\n\n'% \
+                fp.write('Epoch %i : Margin Classification: %f\n'% \
                                          (epoch,margin_cl))
+                fp.write('Epoch %i : Delta Classification: %f\n\n'% \
+                                         (epoch,delta_cl))              
                 
                 
         if (NOW_DISPLAY) and epoch%5==1:
