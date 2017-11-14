@@ -337,7 +337,6 @@ with tf.Session(config = conf) as sess:
     while (epoch < NUM_EPOCHS):
         if sum(map(len,temp_Type2Data.values())) < 0.1 * TOT_RELATIONS:
             epoch += 1
-            step=1
             NOW_DISPLAY = True
             temp_Type2Data = deepcopy(Type2Data)            
             
@@ -393,6 +392,7 @@ with tf.Session(config = conf) as sess:
                                          (epoch,mean_delta)) 
             mean_losses = np.zeros([5])
             mean_delta = 0
+            step=1
                 
                 
         if (NOW_DISPLAY) and epoch%5==1:
