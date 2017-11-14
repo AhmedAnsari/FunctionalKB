@@ -390,7 +390,9 @@ with tf.Session(config = conf) as sess:
                 fp.write('Epoch %i : Margin Classification: %f\n'% \
                                          (epoch,margin_cl))
                 fp.write('Epoch %i : Mean Delta Classification: %f\n\n'% \
-                                         (epoch,mean_delta))              
+                                         (epoch,mean_delta)) 
+            mean_losses = np.zeros([5])
+            mean_delta = 0
                 
                 
         if (NOW_DISPLAY) and epoch%5==1:
