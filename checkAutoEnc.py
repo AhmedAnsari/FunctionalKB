@@ -20,6 +20,7 @@ from pathos.threading import ThreadPool as Pool
 from copy import deepcopy
 import time
 from numba import jit
+from os import sys
 # =============================================================================
 #  Training Parameters
 # =============================================================================
@@ -299,7 +300,7 @@ loss_nontranse = loss_autoenc + loss_classifier + loss_sparsity + \
                     BETA*loss_regulariation 
 
 
-loss = loss_transe + loss_nontranse
+loss = loss_autoenc+loss_regulariation+loss_sparsity
 stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
                         loss_regulariation,loss_transe],axis = 0)
                                 
@@ -307,12 +308,12 @@ stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
 optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE,beta1=0.9,\
                                    beta2=0.999,epsilon=1e-08).minimize(loss)
 
-saver = tf.train.Saver(max_to_keep = 4)
+saver = tf.train.Saver()
+#saver = tf.train.import_meta_graph('/Users/ghulam/Documents/Work@IBM/CODE/FunctionalKB/Logs/November 15, 2017, 12.15PM/model.ckpt-11.meta')
 # =============================================================================
 #  Initialize the variables (i.e. assign their default value)
 # =============================================================================
 init = tf.global_variables_initializer()
-
 # =============================================================================
 #  Start Training
 # =============================================================================
@@ -325,8 +326,9 @@ P = Pool()
 with tf.Session(config = conf) as sess:
 
     # Run the initializer
-    sess.run(init)
-    sess.run(normalize_rel_op)
+#    sess.run(init)
+    print (sys.argv[-1])
+    saver.restore(sess,sys.argv[-1])
     # Training
     NOW_DISPLAY = False
     epoch=1
@@ -395,7 +397,7 @@ with tf.Session(config = conf) as sess:
             step=1
                 
                 
-        if (NOW_DISPLAY) and epoch%10==1:
+        if (NOW_DISPLAY) and epoch%5==1:
             # Evaluation on Training Data
             MRT = []
             MRH = []
