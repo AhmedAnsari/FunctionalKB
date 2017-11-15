@@ -20,6 +20,7 @@ from pathos.threading import ThreadPool as Pool
 from copy import deepcopy
 import time
 from numba import jit
+from os import sys
 # =============================================================================
 #  Training Parameters
 # =============================================================================
@@ -74,16 +75,17 @@ def generate_labels(batch):
 # tf Graph input 
 # =============================================================================
 #Define the entity embedding matrix to be uniform in a unit cube
-a = pkl.load(open('ent_embeddings.pkl'))
-b = pkl.load(open('rel_embeddings.pkl'))
 with tf.device(DEVICE):
-    ent_embeddings = tf.get_variable(name="W_Ent", shape=[VOCABULARY_SIZE,\
-                       EMBEDDING_SIZE], initializer=tf.constant_initializer(a))
- 
+    ent_embeddings = tf.get_variable(name='W_Ent',shape = [VOCABULARY_SIZE,\
+                       EMBEDDING_SIZE],initializer = \
+                        tf.contrib.layers.xavier_initializer(uniform = True))
+    
+    
                                                
     #Define the relation embedding matrix to be uniform in a unit cube
     rel_embeddings = tf.get_variable(name='W_Rel',shape = [RELATIONS_SIZE,\
-                       EMBEDDING_SIZE],initializer = tf.constant_initializer(b))
+                       EMBEDDING_SIZE],initializer = \
+                        tf.contrib.layers.xavier_initializer(uniform = True))
 
 
 
@@ -298,7 +300,7 @@ loss_nontranse = loss_autoenc + loss_classifier + loss_sparsity + \
                     BETA*loss_regulariation 
 
 
-loss = loss_autoenc + loss_sparsity + loss_regulariation
+loss = loss_transe
 stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
                         loss_regulariation,loss_transe],axis = 0)
                                 
@@ -306,12 +308,12 @@ stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
 optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE,beta1=0.9,\
                                    beta2=0.999,epsilon=1e-08).minimize(loss)
 
-saver = tf.train.Saver(max_to_keep = 4)
+saver = tf.train.Saver()
+#saver = tf.train.import_meta_graph('/Users/ghulam/Documents/Work@IBM/CODE/FunctionalKB/Logs/November 15, 2017, 12.15PM/model.ckpt-11.meta')
 # =============================================================================
 #  Initialize the variables (i.e. assign their default value)
 # =============================================================================
 init = tf.global_variables_initializer()
-
 # =============================================================================
 #  Start Training
 # =============================================================================
@@ -320,115 +322,16 @@ conf = tf.ConfigProto()
 conf.gpu_options.allow_growth=True
 conf.log_device_placement=False #@myself: use this for debugging
 conf.allow_soft_placement=True
-P = Pool()
+
 with tf.Session(config = conf) as sess:
 
     # Run the initializer
-    sess.run(init)
-    sess.run(normalize_rel_op)
-    # Training
-    NOW_DISPLAY = False
-    epoch=1
-    step=1    
-    temp_Type2Data = deepcopy(Type2Data)
-    mean_losses = np.zeros([5])
-    mean_delta = 0
-    while (epoch < NUM_EPOCHS):
-        if sum(map(len,temp_Type2Data.values())) < 0.1 * TOT_RELATIONS:
-            epoch += 1
-            NOW_DISPLAY = True
-            temp_Type2Data = deepcopy(Type2Data)            
-            
-        #prepare the data
-        h_batch,r_batch,t_batch,negh_batch,negr_batch,negt_batch,batch_x=\
-        SampleTypeWise(temp_Type2Data,ent2type,Nsamples_Transe,BATCH_SIZE,\
-                       relations_dic_h,relations_dic_t,VOCABULARY_SIZE,\
-                       Pos2NegRatio_Transe,NUM_TYPES_BATCH,NUM_TYPES,1)
-
-        # Get the next batch of type labels
-        batch_y = generate_labels(batch_x)  
-
-        sess.run(normalize_entity_op)                
-
-        # Run optimization op (backprop) and cost op (to get loss value)
-        _, l_array,margin_cl,delta_cl = sess.run([optimizer, stacked_loss,
-                    margin_classification,delta_classification], feed_dict=\
-                        {
-                            X: batch_x,
-                            Y: batch_y,
-                            pos_h:h_batch,
-                            pos_r:r_batch,
-                            pos_t:t_batch,                        
-                            neg_h:negh_batch,
-                            neg_r:negr_batch,
-                            neg_t:negt_batch,                                    
-                        })
-        l = np.sum(l_array)  
-        mean_losses+=np.array(l_array)
-        mean_delta+=delta_cl
-        # Display logs per step
-        if NOW_DISPLAY or step==1:
-            mean_losses/=float(step)
-            mean_delta/=float(step)
-            print('Epoch %i : Minibatch Loss: %f\n' % (epoch, l))
-            l_array = [str(token) for token in mean_losses]
-            print('Epoch %i : Mean Loss Array: %s\n' % (epoch,','.join(l_array)))
-            print('Epoch %i : Margin Classification: %f\n'% \
-                                     (epoch,margin_cl))         
-            print('Epoch %i : Mean Delta Classification: %f\n\n'% \
-                                     (epoch,mean_delta))
-            if not os.path.exists(LOG_DIR):
-                os.makedirs(LOG_DIR)
-#            saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"), step)
-            with open(LOG_DIR+'/loss.txt','a+') as fp:
-                fp.write('Epoch %i : Minibatch Loss: %f\n' % \
-                                                     (epoch, l))
-                fp.write('Epoch %i : Mean Loss Array: %s\n'% \
-                                         (epoch,','.join(l_array)))
-                fp.write('Epoch %i : Margin Classification: %f\n'% \
-                                         (epoch,margin_cl))
-                fp.write('Epoch %i : Mean Delta Classification: %f\n\n'% \
-                                         (epoch,mean_delta)) 
-            mean_losses = np.zeros([5])
-            mean_delta = 0
-            step=1
-                
-                
-        if (NOW_DISPLAY) and epoch%10==1:
-            # Evaluation on Training Data
-            MRT = []
-            MRH = []
-            skip_rate = int(evalsubset_relations.shape[0]/BATCH_EVAL)
-            for j in xrange(0, skip_rate):
-                eval_batch_h = evalsubset_relations[j::skip_rate,0]
-                eval_batch_r = evalsubset_relations[j::skip_rate,1] 
-                eval_batch_t = evalsubset_relations[j::skip_rate,2] 
-                assert eval_batch_h.shape[0]==BATCH_EVAL
-                
-                indexes_h, indexes_t = sess.run([indices_h,indices_t], \
-                                        feed_dict = 
-                                 {
-                                    eval_h:eval_batch_h,                                
-                                    eval_r:eval_batch_r,                                
-                                    eval_t:eval_batch_t,
-                                    eval_to_rank:xrange(VOCABULARY_SIZE) 
-                                 })
-                mrt, mrh = map(Evaluate_MR,*[(eval_batch_t.tolist(),\
-                              eval_batch_h.tolist()), (indexes_t.tolist(),\
-                                                 indexes_h.tolist()), (P,P)])
-                MRT.extend(mrt)
-                MRH.extend(mrh)            
-                
-            if not os.path.exists(LOG_DIR):
-                os.makedirs(LOG_DIR)
-            saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"), epoch)                
-            with open(LOG_DIR+'/progress.txt','a+') as fp:        
-                fp.write('Epoch %i: Minibatch MRT: %f\n' % (epoch, \
-                                                        np.mean(MRT)))
-                fp.write('Epoch %i: Minibatch MRH: %f\n\n' % (epoch, \
-                                                        np.mean(MRH)))
-
-        NOW_DISPLAY = False
-        step += 1
+#    sess.run(init)
+    print (sys.argv[-1])
+    saver.restore(sess,sys.argv[-1])
+    a,b = sess.run([ent_embeddings,rel_embeddings])
+    with open('ent_embeddings.pkl','w') as fp:
+        pkl.dump(a,fp)
+    with open('rel_embeddings.pkl','w') as fp:
+        pkl.dump(b,fp)        
         
-P.close()
