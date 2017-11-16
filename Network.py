@@ -28,7 +28,8 @@ BATCH_SIZE = 160 #@myself: need to set this
 NUM_TYPES_BATCH = BATCH_SIZE 
 RHO = 0.005 #Desired average activation value
 BETA = 0.5
-GAMMA = 0.001
+ALPHA = 10
+GAMMA = 5
 MARGIN = 1
 BATCH_EVAL = 32
 NUM_EPOCHS = 1000
@@ -66,9 +67,8 @@ def generate_labels(batch):
     out = []
     for x in batch:
         out.append(NUM_TYPES*[0])
-        for i in xrange(NUM_TYPES):
-            if x in ent2type[i]:
-                out[-1][i]=1                    
+        for i in ent2type[x]:
+            out[-1][i]=1
     return out
 # =============================================================================
 # tf Graph input 
@@ -251,11 +251,24 @@ _h, indices_h = predict_rank(eval_t_e, -1*eval_r_e, eval_to_rank_e, \
 #evaluation part of Classification
 score_classification = tf.nn.sigmoid(classifier_op)
 marker_classification = 2*(Y-0.5)
-margin_classification = tf.reduce_sum(tf.multiply( score_classification, \
-                                marker_classification))
-min_pos_score_classification = tf.reduce_min(score_classification+1-Y)
-max_neg_score_classification = tf.reduce_max(score_classification-Y)
-delta_classification = min_pos_score_classification - max_neg_score_classification
+
+margin_classification = tf.reduce_mean(tf.reduce_sum(tf.multiply(\
+                         score_classification,marker_classification),axis=1))
+
+pos_score_classification = tf.divide(tf.reduce_sum(\
+                              tf.multiply(score_classification,Y),axis=1),\
+                                tf.reduce_sum(Y,axis=1))
+pos_score_classification = tf.reduce_mean(tf.boolean_mask(\
+                      pos_score_classification, \
+                      tf.logical_not(tf.is_nan(pos_score_classification))))
+neg_score_classification = tf.divide(tf.reduce_sum(\
+                              tf.multiply(score_classification,1-Y),axis=1),\
+                                tf.reduce_sum(1-Y,axis=1))
+neg_score_classification = tf.reduce_mean(tf.boolean_mask(\
+                          neg_score_classification, \
+                          tf.logical_not(tf.is_nan(neg_score_classification))))
+delta_classification = pos_score_classification - neg_score_classification
+
 # =============================================================================
 #  Prediction
 # =============================================================================
@@ -295,7 +308,7 @@ pos = tf.reduce_sum((pos_h_e + pos_r_e - pos_t_e) ** 2, 1, keep_dims = True)
 neg = tf.reduce_sum((neg_h_e + neg_r_e - neg_t_e) ** 2, 1, keep_dims = True)		
 loss_transe = tf.reduce_sum(tf.maximum(pos - neg + MARGIN, 0))
     
-loss_nontranse = loss_autoenc + loss_classifier + loss_sparsity + \
+loss_nontranse = ALPHA*loss_autoenc + GAMMA*loss_classifier + loss_sparsity + \
                     BETA*loss_regulariation 
 
 
@@ -371,6 +384,7 @@ with tf.Session(config = conf) as sess:
         if NOW_DISPLAY or step==1:
             mean_losses/=float(step)
             mean_delta/=float(step)
+#            print(sess.run(tf.reduce_mean(tf.norm(embed,axis=1)),feed_dict = {X: batch_x}))
             print('Epoch %i : Minibatch Loss: %f\n' % (epoch, l))
             l_array = [str(token) for token in mean_losses]
             print('Epoch %i : Mean Loss Array: %s\n' % (epoch,','.join(l_array)))
@@ -393,7 +407,7 @@ with tf.Session(config = conf) as sess:
             mean_losses = np.zeros([5])
             mean_delta = 0
             step=1
-                
+
                 
         if (NOW_DISPLAY) and epoch%10==1:
             # Evaluation on Training Data
