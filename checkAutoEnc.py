@@ -28,7 +28,8 @@ BATCH_SIZE = 160 #@myself: need to set this
 NUM_TYPES_BATCH = BATCH_SIZE 
 RHO = 0.005 #Desired average activation value
 BETA = 0.5
-GAMMA = 0.001
+ALPHA = 10
+GAMMA = 5
 MARGIN = 1
 BATCH_EVAL = 32
 NUM_EPOCHS = 1000
@@ -252,9 +253,19 @@ score_classification = tf.nn.sigmoid(classifier_op)
 marker_classification = 2*(Y-0.5)
 margin_classification = tf.reduce_sum(tf.multiply( score_classification, \
                                 marker_classification))
-min_pos_score_classification = tf.reduce_min(score_classification+1-Y)
-max_neg_score_classification = tf.reduce_max(score_classification-Y)
-delta_classification = min_pos_score_classification - max_neg_score_classification
+pos_score_classification = tf.divide(tf.reduce_sum(\
+                              tf.multiply(score_classification,Y),axis=1),\
+                                tf.reduce_sum(Y,axis=1))
+pos_score_classification = tf.reduce_mean(tf.boolean_mask(\
+                      pos_score_classification, \
+                      tf.logical_not(tf.is_nan(pos_score_classification))))
+neg_score_classification = tf.divide(tf.reduce_sum(\
+                              tf.multiply(score_classification,1-Y),axis=1),\
+                                tf.reduce_sum(1-Y,axis=1))
+neg_score_classification = tf.reduce_mean(tf.boolean_mask(\
+                          neg_score_classification, \
+                          tf.logical_not(tf.is_nan(neg_score_classification))))
+delta_classification = pos_score_classification - neg_score_classification
 # =============================================================================
 #  Prediction
 # =============================================================================
@@ -294,11 +305,11 @@ pos = tf.reduce_sum((pos_h_e + pos_r_e - pos_t_e) ** 2, 1, keep_dims = True)
 neg = tf.reduce_sum((neg_h_e + neg_r_e - neg_t_e) ** 2, 1, keep_dims = True)		
 loss_transe = tf.reduce_sum(tf.maximum(pos - neg + MARGIN, 0))
     
-loss_nontranse = loss_autoenc + loss_classifier + loss_sparsity + \
+loss_nontranse = ALPHA*loss_autoenc + GAMMA*loss_classifier + loss_sparsity + \
                     BETA*loss_regulariation 
 
 
-loss = loss_autoenc + loss_sparsity + loss_regulariation
+loss = ALPHA*loss_autoenc + loss_sparsity + loss_regulariation
 stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
                         loss_regulariation,loss_transe],axis = 0)
                                 
