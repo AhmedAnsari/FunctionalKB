@@ -262,8 +262,8 @@ with tf.Session(config = conf) as sess:
     temp_Type2Data = deepcopy(Type2Data)
     mean_losses = np.zeros([5])
     mean_delta = 0
-#    saver.restore(sess,sys.argv[-1])
-    saver.restore(sess,'/Users/ghulam/Documents/Work@IBM/CODE/FunctionalKB/Logs/data/model.ckpt-411')
+    saver.restore(sess,sys.argv[-1])
+#    saver.restore(sess,'/Users/ghulam/Documents/Work@IBM/CODE/FunctionalKB/Logs/data/model.ckpt-411')
     
     
     #first get the feature vector for all the entities in Vocabulary

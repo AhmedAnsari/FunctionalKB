@@ -1,11 +1,12 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Created on Fri Oct  6 15:14:31 2017
+Created on Mon Nov 20 14:00:20 2017
 
 @author: Ahmed Ansari
 @email: ansarighulamahmed@gmail.com
 """
+
 from __future__ import division, print_function, absolute_import
 
 import tensorflow as tf
@@ -28,8 +29,8 @@ BATCH_SIZE = 160 #@myself: need to set this
 NUM_TYPES_BATCH = BATCH_SIZE 
 RHO = 0.005 #Desired average activation value
 BETA = 0.5
-ALPHA = 10
-GAMMA = 5
+ALPHA = 1
+GAMMA = 1
 MARGIN = 1
 BATCH_EVAL = 32
 NUM_EPOCHS = 1000
@@ -94,6 +95,7 @@ with tf.device(DEVICE):
     #this will contain the type labels for each embedding in the given batch
     Y = tf.placeholder(tf.float32, shape=[BATCH_SIZE,NUM_TYPES])
     
+    
     #these are the placeholders necessary for the TransE loss Part
     #placeholders for positive samples
     pos_h = tf.placeholder(tf.int32, [None])
@@ -105,9 +107,6 @@ with tf.device(DEVICE):
     neg_t = tf.placeholder(tf.int32, [None])
     
     #these are the placeholders necessary for evaluating the link prediction
-    eval_h = tf.placeholder(tf.int32, [None])
-    eval_t = tf.placeholder(tf.int32, [None])#will do h+r and generate rank t 
-    eval_r = tf.placeholder(tf.int32, [None])
     eval_to_rank = tf.placeholder(tf.int32, [None])    
     
 
@@ -126,9 +125,6 @@ neg_t_e = tf.nn.embedding_lookup(ent_embeddings, neg_t)
 neg_r_e = tf.nn.embedding_lookup(rel_embeddings, neg_r)
 
 
-eval_h_e = tf.nn.embedding_lookup(ent_embeddings, eval_h)
-eval_t_e = tf.nn.embedding_lookup(ent_embeddings, eval_t)
-eval_r_e = tf.nn.embedding_lookup(rel_embeddings, eval_r)
 eval_to_rank_e = tf.nn.embedding_lookup(ent_embeddings, eval_to_rank)
 
 normalize_entity_op = tf.assign(ent_embeddings,tf.nn.l2_normalize\
@@ -154,41 +150,81 @@ with tf.device(DEVICE):
                                                                    
         'decoder_h1': tf.get_variable(name='W_decoder_h1',shape = \
                       [NUM_HIDDEN_2, NUM_HIDDEN_1],initializer = \
-                        tf.contrib.layers.xavier_initializer(uniform = True)),      
+                        tf.contrib.layers.xavier_initializer(uniform = True)),   
+                                      
         'decoder_h2': tf.get_variable(name='W_decoder_h2',shape = \
                       [NUM_HIDDEN_1, NUM_INPUT],initializer = \
-                        tf.contrib.layers.xavier_initializer(uniform = True)),      
+                        tf.contrib.layers.xavier_initializer(uniform = True)),    
+                                      
         'classification_h': tf.get_variable(name='W_classification_h',shape = \
                         [NUM_HIDDEN_2, NUM_TYPES],initializer = \
                         tf.contrib.layers.xavier_initializer(uniform = True)),
+                                            
+        'TR_encoder_h1': tf.get_variable(name='W_TR_encoder_h1',shape = \
+                      [2*NUM_INPUT, 2*NUM_HIDDEN_1],initializer = \
+                        tf.contrib.layers.xavier_initializer(uniform = True)),
+    
+        'TR_encoder_h2': tf.get_variable(name='W_TR_encoder_h2',shape = \
+                      [2*NUM_HIDDEN_1, 2*NUM_HIDDEN_2],initializer = \
+                        tf.contrib.layers.xavier_initializer(uniform = True)),      
+                                                                   
+        'TR_decoder_h1': tf.get_variable(name='W_TR_decoder_h1',shape = \
+                      [2*NUM_HIDDEN_2, 2*NUM_HIDDEN_1],initializer = \
+                        tf.contrib.layers.xavier_initializer(uniform = True)),  
+                                      
+        'TR_decoder_h2': tf.get_variable(name='W_TR_decoder_h2',shape = \
+                      [2*NUM_HIDDEN_1, NUM_INPUT],initializer = \
+                        tf.contrib.layers.xavier_initializer(uniform = True)),  
+
     }
     
     biases = {
         'encoder_b1': tf.get_variable(name='W_encoder_b1',shape = \
                       [NUM_HIDDEN_1],initializer = \
                         tf.contrib.layers.xavier_initializer(uniform = True)),
+                                      
         'encoder_b2': tf.get_variable(name='W_encoder_b2',shape = \
                       [NUM_HIDDEN_2],initializer = \
                         tf.contrib.layers.xavier_initializer(uniform = True)),
+                                      
         'decoder_b1': tf.get_variable(name='W_decoder_b1',shape = \
                        [NUM_HIDDEN_1],initializer = \
                         tf.contrib.layers.xavier_initializer(uniform = True)),      
+                                      
         'decoder_b2': tf.get_variable(name='W_decoder_b2',shape = \
                       [NUM_INPUT],initializer = \
-                        tf.contrib.layers.xavier_initializer(uniform = True)),      
+                        tf.contrib.layers.xavier_initializer(uniform = True)),   
+                                      
         'classification_b': tf.get_variable(name='W_classification_b',shape = \
                         [NUM_TYPES],initializer = \
                         tf.contrib.layers.xavier_initializer(uniform = True)),
+                                            
+        'TR_encoder_b1': tf.get_variable(name='W_TR_encoder_b1',shape = \
+                      [2*NUM_HIDDEN_1],initializer = \
+                        tf.contrib.layers.xavier_initializer(uniform = True)),
+                                      
+        'TR_encoder_b2': tf.get_variable(name='W_TR_encoder_b2',shape = \
+                      [2*NUM_HIDDEN_2],initializer = \
+                        tf.contrib.layers.xavier_initializer(uniform = True)),
+                                      
+        'TR_decoder_b1': tf.get_variable(name='W_TR_decoder_b1',shape = \
+                       [2*NUM_HIDDEN_1],initializer = \
+                        tf.contrib.layers.xavier_initializer(uniform = True)),      
+                                      
+        'TR_decoder_b2': tf.get_variable(name='W_TR_decoder_b2',shape = \
+                      [NUM_INPUT],initializer = \
+                        tf.contrib.layers.xavier_initializer(uniform = True)),   
+                                      
     }
 
 # =============================================================================
 #  Building the encoder
 # =============================================================================
 def encoder(x):
-    # Encoder Hidden layer with sigmoid activation #1
+    # Encoder Hidden layer with tanh activation #1
     layer_1 = tf.nn.tanh(tf.add(tf.matmul(x, weights['encoder_h1']),
                                    biases['encoder_b1']))
-    # Encoder Hidden layer with sigmoid activation #2
+    # Encoder Hidden layer with tanh activation #2
     layer_2 = tf.nn.tanh(tf.add(tf.matmul(layer_1, weights['encoder_h2']),
                                    biases['encoder_b2']))
     
@@ -196,17 +232,40 @@ def encoder(x):
     RhoJEH2 = tf.reduce_mean(tf.abs(layer_2),0) 
     return layer_2, RhoJEH1, RhoJEH2
 
+def TR_encoder(x):
+    # Encoder Hidden layer with tanh activation #1
+    layer_1 = tf.nn.tanh(tf.add(tf.matmul(x, weights['TR_encoder_h1']),
+                                   biases['TR_encoder_b1']))
+    # Encoder Hidden layer with tanh activation #2
+    layer_2 = tf.nn.tanh(tf.add(tf.matmul(layer_1, weights['TR_encoder_h2']),
+                                   biases['TR_encoder_b2']))
+    
+    RhoJEH1 = tf.reduce_mean(tf.abs(layer_1),0)
+    RhoJEH2 = tf.reduce_mean(tf.abs(layer_2),0) 
+    return layer_2, RhoJEH1, RhoJEH2    
+
 
 # =============================================================================
 #  Building the decoder
 # =============================================================================
 def decoder(x):
-    # Decoder Hidden layer with sigmoid activation #1
+    # Decoder Hidden layer with tanh activation #1
     layer_1 = tf.nn.tanh(tf.add(tf.matmul(x, weights['decoder_h1']),
                                    biases['decoder_b1']))
-    # Decoder Hidden layer with sigmoid activation #2
+    # Decoder Hidden layer with tanh activation #2
     layer_2 = tf.nn.tanh(tf.add(tf.matmul(layer_1, weights['decoder_h2']),
                                    biases['decoder_b2']))
+    RhoJDH1 = tf.reduce_mean(tf.abs(layer_1),0)
+    RhoJDH2 = tf.reduce_mean(tf.abs(layer_2),0)     
+    return layer_2, RhoJDH1, RhoJDH2
+
+def TR_decoder(x):
+    # Decoder Hidden layer with tanh activation #1
+    layer_1 = tf.nn.tanh(tf.add(tf.matmul(x, weights['TR_decoder_h1']),
+                                   biases['TR_decoder_b1']))
+    # Decoder Hidden layer with tanh activation #2
+    layer_2 = tf.nn.tanh(tf.add(tf.matmul(layer_1, weights['TR_decoder_h2']),
+                                   biases['TR_decoder_b2']))
     RhoJDH1 = tf.reduce_mean(tf.abs(layer_1),0)
     RhoJDH2 = tf.reduce_mean(tf.abs(layer_2),0)     
     return layer_2, RhoJDH1, RhoJDH2
@@ -223,8 +282,7 @@ def classify(x):
 # =============================================================================
 # Building the testing layer which outputs a ranked list of entities
 # =============================================================================
-def predict_rank(x, y, z, batch_size_eval, z_eval_dataset_size, K):
-    z_ = tf.add(x,y)
+def predict_rank(z_, z, batch_size_eval, z_eval_dataset_size, K):
     z_ = tf.stack(z_eval_dataset_size*[z_],axis=1)
     z = tf.stack(batch_size_eval*[z],axis=0) 
     out = -1*tf.norm(tf.add(z,-1*z_),axis=2)
@@ -236,17 +294,22 @@ def predict_rank(x, y, z, batch_size_eval, z_eval_dataset_size, K):
 # =============================================================================
 #  Construct model
 # =============================================================================
-#training part of network
+#training part of main network
 encoder_op, RhoJEH1, RhoJEH2 = encoder(embed)
 decoder_op, RhoJDH1, RhoJDH2 = decoder(encoder_op)
 classifier_op = classify(encoder_op)
+#training part of TR network
+TR_encoder_op, TR_RhoJEH1, TR_RhoJEH2 = TR_encoder(tf.concat([pos_h_e,pos_r_e],axis=1))
+NTR_encoder_op, NTR_RhoJEH1, NTR_RhoJEH2 = TR_encoder(tf.concat([neg_h_e,neg_r_e],axis=1))
+
+TR_decoder_op, TR_RhoJDH1, TR_RhoJDH2 = TR_decoder(TR_encoder_op)
+NTR_decoder_op, NTR_RhoJDH1, NTR_RhoJDH2 = TR_decoder(NTR_encoder_op)
 
 
 #evaluation part of TransE
-_t, indices_t = predict_rank(eval_h_e, eval_r_e, eval_to_rank_e, \
+_t, indices_t = predict_rank(TR_decoder_op, eval_to_rank_e, \
                     BATCH_EVAL, VOCABULARY_SIZE, VOCABULARY_SIZE)
-_h, indices_h = predict_rank(eval_t_e, -1*eval_r_e, eval_to_rank_e, \
-                    BATCH_EVAL, VOCABULARY_SIZE, VOCABULARY_SIZE)
+#doing only tail prediction
 
 #evaluation part of Classification
 score_classification = tf.nn.sigmoid(classifier_op)
@@ -281,6 +344,7 @@ y_true = embed
 logits = classifier_op
 labels = Y
 
+
 # =============================================================================
 #  Define loss and optimizer, minimize the squared error
 # =============================================================================
@@ -292,8 +356,10 @@ loss_classifier =  tf.reduce_sum(tf.reduce_mean((\
                          tf.nn.sigmoid_cross_entropy_with_logits(\
                              labels=labels,logits=logits)),axis=1))
  #sparsity loss
-RhoJ = tf.clip_by_value(tf.concat([RhoJEH1, RhoJEH2, RhoJDH1, RhoJDH2],
-                                  axis = 0),1e-10,1-1e-10)
+RhoJ = tf.clip_by_value(tf.concat([RhoJEH1, RhoJEH2, RhoJDH1, RhoJDH2, \
+           TR_RhoJEH1, TR_RhoJEH2, TR_RhoJDH1, TR_RhoJDH2,\
+            NTR_RhoJEH1, NTR_RhoJEH2, NTR_RhoJDH1, NTR_RhoJDH2],
+                axis = 0),1e-10,1-1e-10)
 Rho = tf.constant(RHO) #Desired average activation value
 
 loss_sparsity = tf.reduce_mean(tf.add(tf.multiply(Rho,tf.log(tf.div(Rho,RhoJ)))
@@ -305,8 +371,8 @@ loss_regulariation = tf.reduce_sum(tf.stack(map(lambda x:
     
     
  #TransE loss
-pos = tf.reduce_sum((pos_h_e + pos_r_e - pos_t_e) ** 2, 1, keep_dims = True)
-neg = tf.reduce_sum((neg_h_e + neg_r_e - neg_t_e) ** 2, 1, keep_dims = True)		
+pos = tf.reduce_sum((TR_decoder_op - pos_t_e) ** 2, 1, keep_dims = True)
+neg = tf.reduce_sum((NTR_decoder_op - neg_t_e) ** 2, 1, keep_dims = True)		
 loss_transe = tf.reduce_sum(tf.maximum(pos - neg + MARGIN, 0))
     
 loss_nontranse = ALPHA*loss_autoenc + GAMMA*loss_classifier + loss_sparsity + \
@@ -387,7 +453,7 @@ with tf.Session(config = conf) as sess:
             mean_delta/=float(step)
             print('Epoch %i : Minibatch Loss: %f\n' % (epoch, l))
             l_array = [str(token) for token in mean_losses]
-            print('Epoch %i : Mean Loss Array: %s\n' % (epoch,','.join(l_array)))
+            print('Epoch %i : Mean Loss Array: %s\n'%(epoch,','.join(l_array)))
             print('Epoch %i : Margin Classification: %f\n'% \
                                      (epoch,margin_cl))         
             print('Epoch %i : Mean Delta Classification: %f\n\n'% \
@@ -419,19 +485,16 @@ with tf.Session(config = conf) as sess:
                 eval_batch_t = evalsubset_relations[j::skip_rate,2] 
                 assert eval_batch_h.shape[0]==BATCH_EVAL
                 
-                indexes_h, indexes_t = sess.run([indices_h,indices_t], \
+                indexes_t = sess.run(indices_t, \
                                         feed_dict = 
                                  {
-                                    eval_h:eval_batch_h,                                
-                                    eval_r:eval_batch_r,                                
-                                    eval_t:eval_batch_t,
+                                    pos_h:eval_batch_h,                                
+                                    pos_r:eval_batch_r,                                
+                                    pos_t:eval_batch_t,
                                     eval_to_rank:xrange(VOCABULARY_SIZE) 
                                  })
-                mrt, mrh = map(Evaluate_MR,*[(eval_batch_t.tolist(),\
-                              eval_batch_h.tolist()), (indexes_t.tolist(),\
-                                                 indexes_h.tolist()), (P,P)])
+                mrt = Evaluate_MR(eval_batch_t.tolist(),indexes_t.tolist(),P)
                 MRT.extend(mrt)
-                MRH.extend(mrh)            
                 
             if not os.path.exists(LOG_DIR):
                 os.makedirs(LOG_DIR)
@@ -439,8 +502,6 @@ with tf.Session(config = conf) as sess:
             with open(LOG_DIR+'/progress.txt','a+') as fp:        
                 fp.write('Epoch %i: Minibatch MRT: %f\n' % (epoch, \
                                                         np.mean(MRT)))
-                fp.write('Epoch %i: Minibatch MRH: %f\n\n' % (epoch, \
-                                                        np.mean(MRH)))
 
         NOW_DISPLAY = False
         step += 1
