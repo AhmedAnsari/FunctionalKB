@@ -24,17 +24,17 @@ from numba import jit
 #  Training Parameters
 # =============================================================================
 LEARNING_RATE = 1e-4
-BATCH_SIZE = 160 #@myself: need to set this
+BATCH_SIZE = 500 #@myself: need to set this
 NUM_TYPES_BATCH = BATCH_SIZE 
-RHO = 0.005 #Desired average activation value
-BETA = 0.5
-ALPHA = 10
-GAMMA = 5
+RHO = 0.05 #Desired average activation value
+BETA = 0.05
+ALPHA = 1
+GAMMA = 1
 MARGIN = 1
 BATCH_EVAL = 32
 NUM_EPOCHS = 1000
-Pos2NegRatio_Transe = 4
-Nsamples_Transe = 160*Pos2NegRatio_Transe
+Nsamples_Transe_Neg = 4
+Nsamples_Transe_Pos = 500
 # =============================================================================
 #  Network Parameters-1 #First let us solve only for Type loss
 # =============================================================================
@@ -100,9 +100,9 @@ with tf.device(DEVICE):
     pos_r = tf.placeholder(tf.int32, [None])
     pos_t = tf.placeholder(tf.int32, [None])
     #placeholders for negative samples
-    neg_h = tf.placeholder(tf.int32, [None])
-    neg_r = tf.placeholder(tf.int32, [None])
-    neg_t = tf.placeholder(tf.int32, [None])
+    neg_h = tf.placeholder(tf.int32, [None,Nsamples_Transe_Neg])
+    neg_r = tf.placeholder(tf.int32, [None,Nsamples_Transe_Neg])
+    neg_t = tf.placeholder(tf.int32, [None,Nsamples_Transe_Neg])
     
     #these are the placeholders necessary for evaluating the link prediction
     eval_h = tf.placeholder(tf.int32, [None])
@@ -306,7 +306,8 @@ loss_regulariation = tf.reduce_sum(tf.stack(map(lambda x:
     
  #TransE loss
 pos = tf.reduce_sum((pos_h_e + pos_r_e - pos_t_e) ** 2, 1, keep_dims = True)
-neg = tf.reduce_sum((neg_h_e + neg_r_e - neg_t_e) ** 2, 1, keep_dims = True)		
+neg_per_pos = tf.reduce_sum((neg_h_e + neg_r_e - neg_t_e) ** 2, 2, keep_dims = True)		
+neg = tf.reduce_mean(neg_per_pos,axis=1)
 loss_transe = tf.reduce_sum(tf.maximum(pos - neg + MARGIN, 0))
     
 loss_nontranse = ALPHA*loss_autoenc + GAMMA*loss_classifier + loss_sparsity + \
@@ -355,11 +356,12 @@ with tf.Session(config = conf) as sess:
             temp_Type2Data = deepcopy(Type2Data)            
             
         #prepare the data
-        h_batch,r_batch,t_batch,negh_batch,negr_batch,negt_batch,batch_x=\
-        SampleTypeWise(temp_Type2Data,ent2type,Nsamples_Transe,BATCH_SIZE,\
+        POS_DATA,NEG_DATA,batch_x = SampleTypeWise(temp_Type2Data,ent2type,\
+                       Nsamples_Transe_Pos,BATCH_SIZE,\
                        relations_dic_h,relations_dic_t,VOCABULARY_SIZE,\
-                       Pos2NegRatio_Transe,NUM_TYPES_BATCH,NUM_TYPES,1)
-
+                       Nsamples_Transe_Neg,NUM_TYPES_BATCH,NUM_TYPES,1)
+        POS_DATA = np.array(POS_DATA)
+        NEG_DATA = np.array(NEG_DATA)
         # Get the next batch of type labels
         batch_y = generate_labels(batch_x)  
 
@@ -371,12 +373,12 @@ with tf.Session(config = conf) as sess:
                         {
                             X: batch_x,
                             Y: batch_y,
-                            pos_h:h_batch,
-                            pos_r:r_batch,
-                            pos_t:t_batch,                        
-                            neg_h:negh_batch,
-                            neg_r:negr_batch,
-                            neg_t:negt_batch,                                    
+                            pos_h:POS_DATA[:,0],
+                            pos_r:POS_DATA[:,1],
+                            pos_t:POS_DATA[:,2],                        
+                            neg_h:NEG_DATA[:,:,0],
+                            neg_r:NEG_DATA[:,:,1],
+                            neg_t:NEG_DATA[:,:,2],
                         })
         l = np.sum(l_array)  
         mean_losses+=np.array(l_array)

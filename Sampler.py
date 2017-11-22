@@ -63,23 +63,17 @@ def SampleData(relations,Nsamples,NBatchX,hDic,tDic,VOCABULARY_SIZE=14951\
     return pos_h,pos_r,pos_t,neg_h,neg_r,neg_t,X
 
 def SampleTypeWise(Type2Data,Ent2Type,Nsamples,NBatchX,hDic,tDic,\
-                   VOCABULARY_SIZE=14951,PostoNegratio = 3,\
+                   VOCABULARY_SIZE=14951,Nsamples_Neg = 3,\
                    NUM_TYPES_BATCH = 128, NUM_TYPES=686, Min_Elems = 1):
-    pos_h = []
-    pos_r = []
-    pos_t = []
-    neg_h = []
-    neg_r = []
-    neg_t = []
+    pos = []
+    neg = []
     #firts sample the types that are there in this batch
     Cur_Types = random.sample(xrange(NUM_TYPES),NUM_TYPES_BATCH)
     #get data corresponding to Cur_Types
     relations = []
     [relations.extend(list(x)) for x in itemgetter(*Cur_Types)(Type2Data)]
-#    [relations.extend(list(Type2Data[_type])) for _type in Cur_Types]
-#    relations = list(relations)
     #now sampe reqd no. of relations from this set    
-    temp = random.sample(relations,int(Nsamples/PostoNegratio))
+    temp = random.sample(relations,int(Nsamples))
     ents = set()
     
     def parallel(arg):
@@ -100,7 +94,7 @@ def SampleTypeWise(Type2Data,Ent2Type,Nsamples,NBatchX,hDic,tDic,\
                 h_ = random.choice(xrange(VOCABULARY_SIZE))
                 if (h_,r_) not in tDic[t_]:
                     break
-        return h,r,t,h_,r_,t_
+        return h_,r_,t_
     
     for h,r,t in temp:
         #delete this tuple from Type2Data
@@ -112,17 +106,14 @@ def SampleTypeWise(Type2Data,Ent2Type,Nsamples,NBatchX,hDic,tDic,\
                 Type2Data[_type].discard((h,r,t))   
                 
         ents.update(set([h,t]))
-        sample = map(parallel,PostoNegratio*[(h,r,t)])
-        _pos_h,_pos_r,_pos_t,_neg_h,_neg_r,_neg_t = zip(*sample)    
-        pos_h.extend(_pos_h)
-        pos_r.extend(_pos_r)
-        pos_t.extend(_pos_t)       
-        neg_h.extend(_neg_h)
-        neg_r.extend(_neg_r)
-        neg_t.extend(_neg_t)        
+        pos.append((h,r,t))
+        neg.append([])
+        neg[-1].extend(map(parallel,Nsamples_Neg*[(h,r,t)]))
+        
+     
         
                 
     ents = list(ents)
     X = random.sample(ents,NBatchX)
     
-    return pos_h,pos_r,pos_t,neg_h,neg_r,neg_t,X    
+    return pos,neg,X    

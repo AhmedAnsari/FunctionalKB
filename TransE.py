@@ -12,7 +12,7 @@ import tensorflow as tf
 import os
 import numpy as np
 import json
-from Sampler import SampleData, SampleTypeWise
+from Sampler import SampleTypeWise
 import datetime
 import cPickle as pkl
 from Evaluation import Evaluate_MR
@@ -24,25 +24,26 @@ from numba import jit
 #  Training Parameters
 # =============================================================================
 LEARNING_RATE = 1e-4
-BATCH_SIZE = 160 #@myself: need to set this
+BATCH_SIZE = 500 #@myself: need to set this
 NUM_TYPES_BATCH = BATCH_SIZE 
-RHO = 0.005 #Desired average activation value
-BETA = 0.5
-GAMMA = 0.001
+RHO = 0.05 #Desired average activation value
+BETA = 0.05
+ALPHA = 1
+GAMMA = 1
 MARGIN = 1
 BATCH_EVAL = 32
 NUM_EPOCHS = 1000
-Pos2NegRatio_Transe = 4
-Nsamples_Transe = 160*Pos2NegRatio_Transe
+Nsamples_Transe_Neg = 4
+Nsamples_Transe_Pos = 500
 # =============================================================================
 #  Network Parameters-1 #First let us solve only for Type loss
 # =============================================================================
 NUM_HIDDEN_1 = 128 # 1st layer num features
 NUM_HIDDEN_2 = 256 # 2nd layer num features (the latent dim)
-NUM_INPUT = EMBEDDING_SIZE = 110 #@myself: need to set this
+NUM_INPUT = EMBEDDING_SIZE = 64 #@myself: need to set this
 VOCABULARY_SIZE = 14951
 RELATIONS_SIZE = 1345
-LOG_DIR = 'Logs/'+str(datetime.datetime.now())
+LOG_DIR = 'Logs/'+datetime.datetime.now().strftime("%B %d, %Y, %I.%M%p")
 DEVICE = '/cpu:0'
 # =============================================================================
 #  Import data regarding embedding relations and type information
@@ -66,9 +67,8 @@ def generate_labels(batch):
     out = []
     for x in batch:
         out.append(NUM_TYPES*[0])
-        for i in xrange(NUM_TYPES):
-            if x in ent2type[i]:
-                out[-1][i]=1                    
+        for i in ent2type[x]:
+            out[-1][i]=1
     return out
 # =============================================================================
 # tf Graph input 
@@ -100,15 +100,17 @@ with tf.device(DEVICE):
     pos_r = tf.placeholder(tf.int32, [None])
     pos_t = tf.placeholder(tf.int32, [None])
     #placeholders for negative samples
-    neg_h = tf.placeholder(tf.int32, [None])
-    neg_r = tf.placeholder(tf.int32, [None])
-    neg_t = tf.placeholder(tf.int32, [None])
+    neg_h = tf.placeholder(tf.int32, [None,Nsamples_Transe_Neg])
+    neg_r = tf.placeholder(tf.int32, [None,Nsamples_Transe_Neg])
+    neg_t = tf.placeholder(tf.int32, [None,Nsamples_Transe_Neg])
     
     #these are the placeholders necessary for evaluating the link prediction
     eval_h = tf.placeholder(tf.int32, [None])
     eval_t = tf.placeholder(tf.int32, [None])#will do h+r and generate rank t 
     eval_r = tf.placeholder(tf.int32, [None])
     eval_to_rank = tf.placeholder(tf.int32, [None])    
+    
+
     
     
 
@@ -129,10 +131,14 @@ eval_t_e = tf.nn.embedding_lookup(ent_embeddings, eval_t)
 eval_r_e = tf.nn.embedding_lookup(rel_embeddings, eval_r)
 eval_to_rank_e = tf.nn.embedding_lookup(ent_embeddings, eval_to_rank)
 
-normalize_entity_op = tf.assign(ent_embeddings,tf.nn.l2_normalize(ent_embeddings,dim=1))
+normalize_entity_op = tf.assign(ent_embeddings,tf.nn.l2_normalize\
+                                            (ent_embeddings,dim=1))
                                                     
 
-normalize_rel_op = tf.assign(rel_embeddings,tf.nn.l2_normalize(rel_embeddings,dim=1))
+normalize_rel_op = tf.assign(rel_embeddings,tf.nn.l2_normalize\
+                                             (rel_embeddings,dim=1))
+
+
 
 with tf.device(DEVICE):
     
@@ -225,6 +231,8 @@ def predict_rank(x, y, z, batch_size_eval, z_eval_dataset_size, K):
     #now find the top_k members from this set
     values_indices = tf.nn.top_k(out,k=K)
     return values_indices
+
+
 # =============================================================================
 #  Construct model
 # =============================================================================
@@ -233,11 +241,34 @@ encoder_op, RhoJEH1, RhoJEH2 = encoder(embed)
 decoder_op, RhoJDH1, RhoJDH2 = decoder(encoder_op)
 classifier_op = classify(encoder_op)
 
-#evaluation part of network
+
+#evaluation part of TransE
 _t, indices_t = predict_rank(eval_h_e, eval_r_e, eval_to_rank_e, \
                     BATCH_EVAL, VOCABULARY_SIZE, VOCABULARY_SIZE)
 _h, indices_h = predict_rank(eval_t_e, -1*eval_r_e, eval_to_rank_e, \
                     BATCH_EVAL, VOCABULARY_SIZE, VOCABULARY_SIZE)
+
+#evaluation part of Classification
+score_classification = tf.nn.sigmoid(classifier_op)
+marker_classification = 2*(Y-0.5)
+
+margin_classification = tf.reduce_mean(tf.reduce_sum(tf.multiply(\
+                         score_classification,marker_classification),axis=1))
+
+pos_score_classification = tf.divide(tf.reduce_sum(\
+                              tf.multiply(score_classification,Y),axis=1),\
+                                tf.reduce_sum(Y,axis=1))
+pos_score_classification = tf.reduce_mean(tf.boolean_mask(\
+                      pos_score_classification, \
+                      tf.logical_not(tf.is_nan(pos_score_classification))))
+neg_score_classification = tf.divide(tf.reduce_sum(\
+                              tf.multiply(score_classification,1-Y),axis=1),\
+                                tf.reduce_sum(1-Y,axis=1))
+neg_score_classification = tf.reduce_mean(tf.boolean_mask(\
+                          neg_score_classification, \
+                          tf.logical_not(tf.is_nan(neg_score_classification))))
+delta_classification = pos_score_classification - neg_score_classification
+
 # =============================================================================
 #  Prediction
 # =============================================================================
@@ -254,49 +285,44 @@ labels = Y
 #  Define loss and optimizer, minimize the squared error
 # =============================================================================
  #For autoencoder part
-loss_autoenc = tf.reduce_mean(tf.pow(y_true - y_pred, 2))
+loss_autoenc = tf.reduce_sum(tf.reduce_mean(tf.pow(y_true - y_pred, 2),axis=1))
 
  #For classification part
-loss_classifier =  tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(
-        labels=labels,logits=logits))
+loss_classifier =  tf.reduce_sum(tf.reduce_mean((\
+                         tf.nn.sigmoid_cross_entropy_with_logits(\
+                             labels=labels,logits=logits)),axis=1))
  #sparsity loss
 RhoJ = tf.clip_by_value(tf.concat([RhoJEH1, RhoJEH2, RhoJDH1, RhoJDH2],
                                   axis = 0),1e-10,1-1e-10)
 Rho = tf.constant(RHO) #Desired average activation value
 
 loss_sparsity = tf.reduce_mean(tf.add(tf.multiply(Rho,tf.log(tf.div(Rho,RhoJ)))
-,tf.multiply((1-Rho),tf.log(tf.div((1-Rho),(1-RhoJ))))))
- 
+                    ,tf.multiply((1-Rho),tf.log(tf.div((1-Rho),(1-RhoJ))))))
+
  #regularization cost
-loss_regulariation = BETA*tf.reduce_mean(tf.stack(map(lambda x: 
+loss_regulariation = tf.reduce_sum(tf.stack(map(lambda x: 
                         tf.nn.l2_loss(x), weights.values()),axis=0))
     
-loss_embedding_regularization = GAMMA*tf.reduce_mean(tf.stack(map(lambda x: 
-                        tf.nn.l2_loss(x), [ent_embeddings,rel_embeddings]),axis=0))
     
  #TransE loss
 pos = tf.reduce_sum((pos_h_e + pos_r_e - pos_t_e) ** 2, 1, keep_dims = True)
-neg = tf.reduce_sum((neg_h_e + neg_r_e - neg_t_e) ** 2, 1, keep_dims = True)		
+neg_per_pos = tf.reduce_sum((neg_h_e + neg_r_e - neg_t_e) ** 2, 2, keep_dims = True)		
+neg = tf.reduce_mean(neg_per_pos,axis=1)
 loss_transe = tf.reduce_sum(tf.maximum(pos - neg + MARGIN, 0))
     
-loss_nontranse = loss_autoenc + loss_classifier + loss_sparsity + \
-                    loss_regulariation + loss_embedding_regularization
+loss_nontranse = ALPHA*loss_autoenc + GAMMA*loss_classifier + loss_sparsity + \
+                    BETA*loss_regulariation 
+
 
 loss = loss_transe
 stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
-                        loss_regulariation, loss_embedding_regularization,\
-                        loss_transe],axis = 0)
+                        loss_regulariation,loss_transe],axis = 0)
                                 
 #optimizer = tf.train.RMSPropOptimizer(LEARNING_RATE).minimize(loss)
-optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE,beta1=0.9,beta2=0.999,\
-                                   epsilon=1e-08).minimize(loss)
+optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE,beta1=0.9,\
+                                   beta2=0.999,epsilon=1e-08).minimize(loss)
 
-#grads_vars_non_transe = optimizer.compute_gradients(loss_nontranse)
-#grads_vars_transe = optimizer.compute_gradients(loss_transe)
-#train_op_non_transe = optimizer.apply_gradients(grads_vars_non_transe)
-#train_op_transe = optimizer.apply_gradients(grads_vars_transe)
-
-saver = tf.train.Saver()
+saver = tf.train.Saver(max_to_keep = 4)
 # =============================================================================
 #  Initialize the variables (i.e. assign their default value)
 # =============================================================================
@@ -320,61 +346,71 @@ with tf.Session(config = conf) as sess:
     NOW_DISPLAY = False
     epoch=1
     step=1    
-    temp_relations = dict.fromkeys([tuple(v) for v in relations])
     temp_Type2Data = deepcopy(Type2Data)
+    mean_losses = np.zeros([5])
+    mean_delta = 0
     while (epoch < NUM_EPOCHS):
         if sum(map(len,temp_Type2Data.values())) < 0.1 * TOT_RELATIONS:
             epoch += 1
-            step=1
             NOW_DISPLAY = True
-            temp_relations = dict.fromkeys([tuple(v) for v in relations])
             temp_Type2Data = deepcopy(Type2Data)            
             
         #prepare the data
-#        tame = time.time()
-        posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch,batch_x=\
-        SampleTypeWise(temp_Type2Data,ent2type,Nsamples_Transe,BATCH_SIZE,\
+        POS_DATA,NEG_DATA,batch_x = SampleTypeWise(temp_Type2Data,ent2type,\
+                       Nsamples_Transe_Pos,BATCH_SIZE,\
                        relations_dic_h,relations_dic_t,VOCABULARY_SIZE,\
-                       Pos2NegRatio_Transe,NUM_TYPES_BATCH,NUM_TYPES,1)
-#        print (time.time()-tame)
-#        posh_batch,posr_batch,post_batch,negh_batch,negr_batch,negt_batch,batch_x=\
-#        SampleData(temp_relations,Nsamples_Transe,BATCH_SIZE,relations_dic_h,\
-#                   relations_dic_t,VOCABULARY_SIZE,Pos2NegRatio_Transe)
+                       Nsamples_Transe_Neg,NUM_TYPES_BATCH,NUM_TYPES,1)
+        POS_DATA = np.array(POS_DATA)
+        NEG_DATA = np.array(NEG_DATA)
         # Get the next batch of type labels
         batch_y = generate_labels(batch_x)  
 
         sess.run(normalize_entity_op)                
-#        print('before:'+str(sess.run(tf.norm(ent_embeddings,axis=1))))        
+
         # Run optimization op (backprop) and cost op (to get loss value)
-        _, l_array = sess.run([optimizer, stacked_loss], feed_dict=\
+        _, l_array,margin_cl,delta_cl = sess.run([optimizer, stacked_loss,
+                    margin_classification,delta_classification], feed_dict=\
                         {
                             X: batch_x,
                             Y: batch_y,
-                            pos_h:posh_batch,
-                            pos_r:posr_batch,
-                            pos_t:post_batch,                        
-                            neg_h:negh_batch,
-                            neg_r:negr_batch,
-                            neg_t:negt_batch,                                    
+                            pos_h:POS_DATA[:,0],
+                            pos_r:POS_DATA[:,1],
+                            pos_t:POS_DATA[:,2],                        
+                            neg_h:NEG_DATA[:,:,0],
+                            neg_r:NEG_DATA[:,:,1],
+                            neg_t:NEG_DATA[:,:,2],
                         })
-#        print(time.time()-tame)           
-#        print('after:'+str(sess.run(tf.norm(ent_embeddings,axis=1)))+'\n')
-        l = np.sum(l_array)     
+        l = np.sum(l_array)  
+        mean_losses+=np.array(l_array)
+        mean_delta+=delta_cl
         # Display logs per step
         if NOW_DISPLAY or step==1:
+            mean_losses/=float(step)
+            mean_delta/=float(step)
             print('Epoch %i : Minibatch Loss: %f\n' % (epoch, l))
-            l_array = [str(token) for token in l_array]
-            print('Epoch %i : Loss Array: %s\n' % (epoch,','.join(l_array)))
+            l_array = [str(token) for token in mean_losses]
+            print('Epoch %i : Mean Loss Array: %s\n' % (epoch,','.join(l_array)))
+            print('Epoch %i : Margin Classification: %f\n'% \
+                                     (epoch,margin_cl))         
+            print('Epoch %i : Mean Delta Classification: %f\n\n'% \
+                                     (epoch,mean_delta))
             if not os.path.exists(LOG_DIR):
                 os.makedirs(LOG_DIR)
-            saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"), step)
             with open(LOG_DIR+'/loss.txt','a+') as fp:
                 fp.write('Epoch %i : Minibatch Loss: %f\n' % \
                                                      (epoch, l))
-                fp.write('Epoch %i : Loss Array: %s\n\n'% \
+                fp.write('Epoch %i : Mean Loss Array: %s\n'% \
                                          (epoch,','.join(l_array)))
+                fp.write('Epoch %i : Margin Classification: %f\n'% \
+                                         (epoch,margin_cl))
+                fp.write('Epoch %i : Mean Delta Classification: %f\n\n'% \
+                                         (epoch,mean_delta)) 
+            mean_losses = np.zeros([5])
+            mean_delta = 0
+            step=1
+
                 
-        if (NOW_DISPLAY) and epoch%5==1:
+        if (NOW_DISPLAY) and epoch%10==1:
             # Evaluation on Training Data
             MRT = []
             MRH = []
@@ -401,6 +437,7 @@ with tf.Session(config = conf) as sess:
                 
             if not os.path.exists(LOG_DIR):
                 os.makedirs(LOG_DIR)
+            saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"), epoch)                
             with open(LOG_DIR+'/progress.txt','a+') as fp:        
                 fp.write('Epoch %i: Minibatch MRT: %f\n' % (epoch, \
                                                         np.mean(MRT)))
