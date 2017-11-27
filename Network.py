@@ -307,7 +307,7 @@ loss_regulariation = tf.reduce_sum(tf.stack(map(lambda x:
  #TransE loss
 pos = tf.reduce_sum((pos_h_e + pos_r_e - pos_t_e) ** 2, 1, keep_dims = True)
 neg_per_pos = tf.reduce_sum((neg_h_e + neg_r_e - neg_t_e) ** 2, 2, keep_dims = True)		
-neg = tf.reduce_mean(neg_per_pos,axis=1)
+neg = tf.reduce_min(neg_per_pos,axis=1)
 loss_transe = tf.reduce_sum(tf.maximum(pos - neg + MARGIN, 0))
     
 loss_nontranse = ALPHA*loss_autoenc + GAMMA*loss_classifier + loss_sparsity + \
