@@ -34,7 +34,7 @@ GAMMA = 1
 MARGIN = 1
 BATCH_EVAL = 32
 NUM_EPOCHS = 1000
-Nsamples_Transe_Neg = 4
+Nsamples_Transe_Neg = 10
 Nsamples_Transe_Pos = 160
 # =============================================================================
 #  Network Parameters-1 #First let us solve only for Type loss
@@ -125,7 +125,7 @@ with tf.device(DEVICE):
 #look up the vector for each of the source words in the batch for Jtype part
 embed = tf.nn.embedding_lookup(ent_embeddings, X)
 
-embednew = tf.matmul(ent_embeddings,pop_mat)
+embednew = tf.nn.l2_normalize(tf.matmul(ent_embeddings,pop_mat),dim=1)
 #look up the vector for each of the source words in the batch for TransE part
 pos_h_e = tf.nn.embedding_lookup(embednew, pos_h)
 pos_t_e = tf.nn.embedding_lookup(embednew, pos_t)
@@ -314,15 +314,20 @@ loss_regulariation = tf.reduce_sum(tf.stack(map(lambda x:
     
     
     
-losses_pop = tf.reduce_mean(tf.subtract(POP_LAYER,prev_pop_layer_out)**2) + \
-            tf.reduce_mean(tf.pow(tf.norm(POP_LAYER,axis=1)-1,2))+BETA*tf.nn.l2_loss(pop_mat)
-loss_pop = tf.reduce_mean(tf.subtract(POP_LAYER,prev_pop_layer_out)**2)
+#losses_pop = tf.reduce_mean(tf.subtract(POP_LAYER,prev_pop_layer_out)**2) + \
+#            tf.reduce_mean(tf.pow(tf.norm(POP_LAYER,axis=1)-1,2))+BETA*tf.nn.l2_loss(pop_mat)
+#loss_pop = tf.reduce_mean(tf.subtract(POP_LAYER,prev_pop_layer_out)**2)
+theta = tf.nn.embedding_lookup(ent_embeddings, Z)
+new_pop = tf.matmul(tf.matrix_inverse(tf.matmul(tf.transpose(theta),theta)),\
+                    tf.matmul(tf.transpose(theta),prev_pop_layer_out))
+    
+fix_pop = tf.assign(pop_mat,new_pop)
 
     
  #TransE loss
 pos = tf.reduce_sum((pos_h_e + pos_r_e - pos_t_e) ** 2, 1, keep_dims = True)
 neg_per_pos = tf.reduce_sum((neg_h_e + neg_r_e - neg_t_e) ** 2, 2, keep_dims = True)		
-neg = tf.reduce_mean(neg_per_pos,axis=1)
+neg = tf.reduce_min(neg_per_pos,axis=1)
 loss_transe = tf.reduce_sum(tf.maximum(pos - neg + MARGIN, 0))
     
 loss_nontranse = ALPHA*loss_autoenc + GAMMA*loss_classifier + loss_sparsity + \
@@ -345,10 +350,10 @@ optimizer3 = tf.train.AdamOptimizer(learning_rate=1e-3,beta1=0.9,\
 
 grads_vars_1 = optimizer1.compute_gradients(loss_nontranse,tf.trainable_variables())
 grads_vars_2 = optimizer2.compute_gradients(loss_transe,tf.trainable_variables())
-grads_vars_3 = optimizer3.compute_gradients(losses_pop,[pop_mat])
+#grads_vars_3 = optimizer3.compute_gradients(losses_pop,[pop_mat])
 op1 = optimizer1.apply_gradients(grads_vars_1)
 op2 = optimizer2.apply_gradients(grads_vars_2)
-op3 = optimizer3.apply_gradients(grads_vars_3)
+#op3 = optimizer3.apply_gradients(grads_vars_3)
 saver = tf.train.Saver(max_to_keep = 4)
 # =============================================================================
 #  Initialize the variables (i.e. assign their default value)
@@ -395,22 +400,32 @@ with tf.Session(config = conf) as sess:
 #        sess.run(normalize_entity_op)                
 
         # Run optimization op (backprop) and cost op (to get loss value)
-        _, prev_vals = sess.run([op1, POP_LAYER], feed_dict=\
+        prev_vals = sess.run(POP_LAYER, feed_dict=\
+                        {
+                            Z: xrange(VOCABULARY_SIZE),
+                        })        
+        _ = sess.run(op1, feed_dict=\
                         {
                             X: batch_x,
                             Y: batch_y,
-                            Z: xrange(VOCABULARY_SIZE),
                         })
-        while True:
-            _, poploss = sess.run([op3, loss_pop], feed_dict=\
+        
+#        while True:
+#            _, poploss = sess.run([op3, loss_pop], feed_dict=\
+#                            {
+#                                Z: xrange(VOCABULARY_SIZE),
+#                                prev_pop_layer_out:prev_vals ,                                
+#                            })
+##            print("Poploss Is : "+str(poploss))
+#            if poploss <= 1e-2: 
+##                print("Done \n")
+#                break
+        
+        sess.run(fix_pop, feed_dict=\
                             {
                                 Z: xrange(VOCABULARY_SIZE),
                                 prev_pop_layer_out:prev_vals ,                                
                             })
-#            print("Poploss Is : "+str(poploss))
-            if poploss <= 1e-2: 
-#                print("Done \n")
-                break
          
         _, l_array,margin_cl,delta_cl = sess.run([op2, stacked_loss,
                     margin_classification,delta_classification], feed_dict=\

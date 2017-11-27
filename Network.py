@@ -24,7 +24,7 @@ from numba import jit
 #  Training Parameters
 # =============================================================================
 LEARNING_RATE = 1e-4
-BATCH_SIZE = 500 #@myself: need to set this
+BATCH_SIZE = 160 #@myself: need to set this
 NUM_TYPES_BATCH = BATCH_SIZE 
 RHO = 0.05 #Desired average activation value
 BETA = 0.05
@@ -34,7 +34,7 @@ MARGIN = 1
 BATCH_EVAL = 32
 NUM_EPOCHS = 1000
 Nsamples_Transe_Neg = 4
-Nsamples_Transe_Pos = 500
+Nsamples_Transe_Pos = 160
 # =============================================================================
 #  Network Parameters-1 #First let us solve only for Type loss
 # =============================================================================
