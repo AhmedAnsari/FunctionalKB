@@ -330,32 +330,32 @@ stacked_loss = tf.stack([loss_autoenc, loss_classifier, loss_sparsity, \
 optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE,beta1=0.9,\
                                    beta2=0.999,epsilon=1e-08).minimize(loss)
 
-#unshared_vars = []
-#unshared_vars.extend(weights.values())
-#unshared_vars.extend(biases.values())
-#unshared_vars.append(rel_embeddings)
-#
-#grads_vars_unshared_vars = optimizer.compute_gradients(loss,unshared_vars)
-#grads_vars_1 = optimizer.compute_gradients(loss_nontranse,[ent_embeddings])
-#grads_vars_2 = optimizer.compute_gradients(loss_transe,[ent_embeddings])
-#
-#
-#new_grads_vars_1 = []
-#new_grads_vars_2 = []
-#
-#for gv1,gv2 in zip(grads_vars_1, grads_vars_2):
-#    g1,v1=  gv1
-#    g2,v2 = gv2
-#    
-#    assert v1==v2
-#    new_grads_vars_1.append((tf.where(tf.greater_equal(tf.multiply(g1,g2),0),\
-#                                      g1,tf.multiply(0.0,g1)),v1))
-#    new_grads_vars_2.append((tf.where(tf.greater_equal(tf.multiply(g1,g2),0),\
-#                                      g2,tf.multiply(0.0,g2)),v2))
-#    
-#op1 = optimizer.apply_gradients(new_grads_vars_1)
-#op2 = optimizer.apply_gradients(new_grads_vars_2)
-#op_unshared = optimizer.apply_gradients(grads_vars_unshared_vars)
+unshared_vars = []
+unshared_vars.extend(weights.values())
+unshared_vars.extend(biases.values())
+unshared_vars.append(rel_embeddings)
+
+grads_vars_unshared_vars = optimizer.compute_gradients(loss,unshared_vars)
+grads_vars_1 = optimizer.compute_gradients(loss_nontranse,[ent_embeddings])
+grads_vars_2 = optimizer.compute_gradients(loss_transe,[ent_embeddings])
+
+
+new_grads_vars_1 = []
+new_grads_vars_2 = []
+
+for gv1,gv2 in zip(grads_vars_1, grads_vars_2):
+    g1,v1=  gv1
+    g2,v2 = gv2
+    
+    assert v1==v2
+    new_grads_vars_1.append((tf.where(tf.greater_equal(tf.multiply(g1,g2),0),\
+                                      g1,tf.multiply(0.0,g1)),v1))
+    new_grads_vars_2.append((tf.where(tf.greater_equal(tf.multiply(g1,g2),0),\
+                                      g2,tf.multiply(0.0,g2)),v2))
+    
+op1 = optimizer.apply_gradients(new_grads_vars_1)
+op2 = optimizer.apply_gradients(new_grads_vars_2)
+op_unshared = optimizer.apply_gradients(grads_vars_unshared_vars)
 
 saver = tf.train.Saver(max_to_keep = 4)
 # =============================================================================
@@ -403,20 +403,7 @@ with tf.Session(config = conf) as sess:
         sess.run(normalize_entity_op)                
 
         # Run optimization op (backprop) and cost op (to get loss value)
-#        _1,_2,_3,l_array,margin_cl,delta_cl = sess.run([op_unshared, op1, op2,\
-#                        stacked_loss, margin_classification,\
-#                        delta_classification], feed_dict=\
-#                        {
-#                            X: batch_x,
-#                            Y: batch_y,
-#                            pos_h:POS_DATA[:,0],
-#                            pos_r:POS_DATA[:,1],
-#                            pos_t:POS_DATA[:,2],                        
-#                            neg_h:NEG_DATA[:,:,0],
-#                            neg_r:NEG_DATA[:,:,1],
-#                            neg_t:NEG_DATA[:,:,2],
-#                        })
-        _,l_array,margin_cl,delta_cl = sess.run([optimizer,\
+        _1,_2,_3,l_array,margin_cl,delta_cl = sess.run([op_unshared, op1, op2,\
                         stacked_loss, margin_classification,\
                         delta_classification], feed_dict=\
                         {
@@ -428,13 +415,8 @@ with tf.Session(config = conf) as sess:
                             neg_h:NEG_DATA[:,:,0],
                             neg_r:NEG_DATA[:,:,1],
                             neg_t:NEG_DATA[:,:,2],
-                        })        
+                        })
 
-        
-        
-        
-        
-        
         
         l = np.sum(l_array)  
         mean_losses+=np.array(l_array)
@@ -491,10 +473,8 @@ with tf.Session(config = conf) as sess:
                 os.makedirs(LOG_DIR)
             saver.save(sess, os.path.join(LOG_DIR, "model.ckpt"), epoch)                
             with open(LOG_DIR+'/progress.txt','a+') as fp:        
-                fp.write('Epoch %i: Minibatch MRT: %f\n' % (epoch, \
+                fp.write('Epoch %i: Minibatch MRT: %f\n\n' % (epoch, \
                                                         np.mean(MRT)))
-                fp.write('Epoch %i: Minibatch MRH: %f\n\n' % (epoch, \
-                                                        np.mean(MRH)))
 
         NOW_DISPLAY = False
         step += 1
