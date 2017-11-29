@@ -460,6 +460,7 @@ with tf.Session(config = conf) as sess:
                 assert eval_batch_h.shape[0]==BATCH_EVAL
                 
                 indexes_t = sess.run([indices_t], \
+                indexes_t = sess.run(indices_t, \
                                         feed_dict = 
                                  {
                                     pos_h:eval_batch_h,                                
