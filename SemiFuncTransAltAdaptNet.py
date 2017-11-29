@@ -130,6 +130,7 @@ normalize_entity_op = tf.assign(ent_embeddings,tf.nn.l2_normalize\
 
 normalize_rel_op = tf.assign(rel_embeddings,tf.nn.l2_normalize\
                                              (rel_embeddings,dim=1))
+keep_prob = tf.placeholder(tf.float32)
 
 
 
@@ -158,6 +159,10 @@ with tf.device(DEVICE):
         'Translate_h1': tf.get_variable(name='W_Translate_h1',shape = \
                       [2*NUM_INPUT, NUM_INPUT],initializer = \
                         tf.contrib.layers.xavier_initializer(uniform = True)),                                                                                        
+
+        'Translate_h2': tf.get_variable(name='W_Translate_h2',shape = \
+                      [NUM_INPUT, NUM_INPUT],initializer = \
+                        tf.contrib.layers.xavier_initializer(uniform = True)),                                                                                                
         
     }
     
@@ -220,14 +225,16 @@ def classify(x):
 
 def Translate(Tensor_h,Tensor_r):
     Tensor_input = tf.concat([Tensor_h,Tensor_r],axis=1)
-    Tensor_t = tf.matmul(Tensor_input,weights['Translate_h1'])
-    return Tensor_t
+    Tensor_t1 = tf.matmul(Tensor_input,weights['Translate_h1'])
+    Tensor_t1_drop = tf.nn.tanh(tf.nn.dropout(Tensor_t1, keep_prob))
+    Tensor_t2 = tf.matmul(Tensor_t1_drop,weights['Translate_h2'])
+    return Tensor_t2
 
 def neg_Translate(Tensor_h,Tensor_r):
-    Tensor_input = tf.concat([Tensor_h,Tensor_r],axis=2)
-    Tensor_inputs = tf.unstack(Tensor_input,axis=1)    
-    Tensor_t = tf.stack([tf.matmul(t_inp,weights['Translate_h1']) for t_inp in Tensor_inputs],axis=1)
-    return Tensor_t    
+    h_inputs = tf.unstack(Tensor_h,axis=1)    
+    r_inputs = tf.unstack(Tensor_r,axis=1)    
+    Tensor_t = tf.stack([Translate(TH,TR) for TH,TR in zip(h_inputs,r_inputs)],axis=1)
+    return Tensor_t   
 
 # =============================================================================
 # Building the testing layer which outputs a ranked list of entities
@@ -415,8 +422,8 @@ with tf.Session(config = conf) as sess:
                             neg_h:NEG_DATA[:,:,0],
                             neg_r:NEG_DATA[:,:,1],
                             neg_t:NEG_DATA[:,:,2],
+                            keep_prob:0.95,
                         })
-
         
         l = np.sum(l_array)  
         mean_losses+=np.array(l_array)
@@ -459,13 +466,13 @@ with tf.Session(config = conf) as sess:
                 eval_batch_t = evalsubset_relations[j::skip_rate,2] 
                 assert eval_batch_h.shape[0]==BATCH_EVAL
                 
-                indexes_t = sess.run([indices_t], \
                 indexes_t = sess.run(indices_t, \
                                         feed_dict = 
                                  {
                                     pos_h:eval_batch_h,                                
                                     pos_r:eval_batch_r,                                
-                                    eval_to_rank:xrange(VOCABULARY_SIZE) 
+                                    eval_to_rank:xrange(VOCABULARY_SIZE),
+                                    keep_prob:1,
                                  })
                 mrt = Evaluate_MR(eval_batch_t.tolist(), indexes_t.tolist(),P)
                 MRT.extend(mrt)
