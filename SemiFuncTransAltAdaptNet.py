@@ -157,11 +157,11 @@ with tf.device(DEVICE):
                         tf.contrib.layers.xavier_initializer(uniform = True)),
 
         'Translate_h1': tf.get_variable(name='W_Translate_h1',shape = \
-                      [2*NUM_INPUT, NUM_INPUT],initializer = \
+                      [2*NUM_INPUT, NUM_INPUT/2],initializer = \
                         tf.contrib.layers.xavier_initializer(uniform = True)),                                                                                        
 
         'Translate_h2': tf.get_variable(name='W_Translate_h2',shape = \
-                      [NUM_INPUT, NUM_INPUT],initializer = \
+                      [NUM_INPUT/2, NUM_INPUT],initializer = \
                         tf.contrib.layers.xavier_initializer(uniform = True)),                                                                                                
         
     }
