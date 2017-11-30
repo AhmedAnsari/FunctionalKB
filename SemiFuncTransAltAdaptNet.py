@@ -223,18 +223,19 @@ def classify(x):
                                    biases['classification_b'])
     return layer_1
 
-def Translate(Tensor_h,Tensor_r):
+def Translate(Tensor_h,Tensor_r,dropout=True):
     Tensor_input = tf.concat([Tensor_h,Tensor_r],axis=1)
     Tensor_t1 = tf.matmul(Tensor_input,weights['Translate_h1'])
-    Tensor_t1_drop = tf.nn.tanh(tf.nn.dropout(Tensor_t1, keep_prob))
-    Tensor_t2 = tf.matmul(Tensor_t1_drop,weights['Translate_h2'])
+    if dropout:
+        Tensor_t1 = tf.nn.tanh(tf.nn.dropout(Tensor_t1, keep_prob))
+    Tensor_t2 = tf.matmul(Tensor_t1,weights['Translate_h2'])
     return Tensor_t2
 
 def neg_Translate(Tensor_h,Tensor_r):
     h_inputs = tf.unstack(Tensor_h,axis=1)    
-    r_inputs = tf.unstack(Tensor_r,axis=1)    
-    Tensor_t = tf.stack([Translate(TH,TR) for TH,TR in zip(h_inputs,r_inputs)],axis=1)
-    return Tensor_t   
+    r_inputs = tf.unstack(Tensor_r,axis=1)
+    Tensor_t = tf.stack([Translate(TH,TR,False) for TH,TR in zip(h_inputs,r_inputs)],axis=1)
+    return Tensor_t
 
 # =============================================================================
 # Building the testing layer which outputs a ranked list of entities
